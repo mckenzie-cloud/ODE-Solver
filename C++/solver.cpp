@@ -9,13 +9,14 @@
 /*
  *
  * Copyright (c) 2024 Mckenzie Regalado - All Rights Reserved.
- * Naval, Biliran, Philippines
- * 
- * References:
- * [1] K. Gustafsson. Control theoretic techniques for stepsize selection in explicit Runge–Kutta methods. ACM TOMS 17:533–554, 1991.
- * [2] G. Söderlind, “Digital Filters in Adaptive Time-Stepping”, ACM Trans. Math. Software, 29, pp. 1-26 (2003).
- * [3] Söderlind, Wang (2006) Adaptive time-stepping and computational stability DOI: 10.1016/j.cam.2005.03.008 
- * [4] Hairer, Ernst et. al. 𝘚𝘰𝘭𝘷𝘪𝘯𝘨 𝘖𝘳𝘥𝘪𝘯𝘢𝘳𝘺 𝘋𝘪𝘧𝘧𝘦𝘳𝘦𝘯𝘵𝘪𝘢𝘭 𝘌𝘲𝘶𝘢𝘵𝘪𝘰𝘯𝘴 𝘐: 𝘕𝘰𝘯𝘴𝘵𝘪𝘧𝘧 𝘗𝘳𝘰𝘣𝘭𝘦𝘮𝘴, Springer Science & Business Media, 1987, 
+ * Philippines
+ 
+ * References :
+ * [1] J.R. Dormand, & P.J. Prince (1980). A family of embedded Runge-Kutta formulae. Journal of Computational and Applied Mathematics, 6(1), 19-26.
+ * [2] Gustafsson, K. (1991). Control Theoretic Techniques for Stepsize Selection in Explicit Runge-Kutta Methods. ACM Transactions on Mathematical Software, 17(4), 533-554.
+ * [3] Söderlind, G. (2003). Digital filters in adaptive time-stepping. ACM Trans. Math. Softw., 29(1), 1–26.
+ * [4] Söderlind, G., & Wang, L. (2006). Adaptive Time-Stepping and Computational Stability. Journal of Computational and Applied Mathematics, 185, 225-243. https://doi.org/10.1016/j.cam.2005.03.008 
+ * [5] Hairer, Ernst et. al. 𝘚𝘰𝘭𝘷𝘪𝘯𝘨 𝘖𝘳𝘥𝘪𝘯𝘢𝘳𝘺 𝘋𝘪𝘧𝘧𝘦𝘳𝘦𝘯𝘵𝘪𝘢𝘭 𝘌𝘲𝘶𝘢𝘵𝘪𝘰𝘯𝘴 𝘐: 𝘕𝘰𝘯𝘴𝘵𝘪𝘧𝘧 𝘗𝘳𝘰𝘣𝘭𝘦𝘮𝘴, Springer Science & Business Media, 1987, 
  * "Automatic Step Size Control" page-167, "Dense Output and Continuous Dormand & Prince Pairs" pp. 188-191.
  *
 */ 
@@ -41,46 +42,73 @@ namespace Dopri5
     constexpr double e1  = 5179.0/57600.0,  e3 = 7571.0/16695.0,  e4  = 393.0/640.0,    e5  = -92097.0/339200.0, e6  = 187.0/2100.0, e7 = 1.0/40.0;
 }
 
+namespace Controller
+{
+    enum Controllers
+    {
+        STANDARD, 
+        H211PI,   
+        H312PID,  
+        H211B,    
+        H312B,    
+        PI42,
+
+
+        /*
+        ***Recommended Controllers with Stepsize Low-Pass Filters and their Problem Classes***
+        *  Reference: Digital Filters in Adaptive Time-Stepping (Sorderlind, 2003) 
+        *  https://dl.acm.org/doi/10.1145/641876.641877 -> Table III. page 24
+        */
+
+        /*--------------------------------------------------------------------------
+        * kbeta1 | kbeta2 | kbeta3 | alpha2 | alpha3 | Class    | Problem Type
+        *-------------------------------------------------------------------------
+        * 1/b    | 1/b    | 0      | 1/b    | 0      | H211b    | medium to nonsmooth
+        * 1/6    | 1/6    | 0      | 0      | 0      | H211 PI  | medium to nonsmooth
+        * 1/b    | 2/b    | 1/b    | 3/b    | 1/b    | H312b    | nonsmooth
+        * 1/18   | 1/9    | 1/18   | 0      | 0      | H312 PID | nonsmooth
+        *-------------------------------------------------------------------------
+        */
+    };
+}
+
 
 class Solver {
 
 private :
-    const double p         = 4.0;        // the order corresponding to the RK method
-    const double k         = p + 1.0;    // EPS => k = p + 1 and EPUS => k = p
-    const double kappa     = 1.35;       // kappa ∈ [0.7, 2] as suggested in the literature
-    const double accept_SF = 0.90;       // accept safety factor
+    const double m_p         = 4.0;        // the order corresponding to the RK method
+    const double m_k         = m_p + 1.0;    // EPS => k = p + 1 and EPUS => k = p
+    const double m_kappa     = 1.0;        // kappa ∈ [0.7, 2] as suggested in the literature
+    const double m_acceptSF = 0.90;       // accept safety factor
 
-    double absTOL = 1e-6;    // default absolute tolerance
-    double relTol = 1e-4;    // default relative tolerance
+    double m_h{}, m_t{}, m_tFinal{}, m_absTol{}, m_relTol{};
 
-    double h, t, t_end;
+    double m_beta1, m_beta2, m_beta3, m_alpha2, m_alpha3;
 
-    double beta1, beta2, beta3, alpha2, alpha3;
+    bool m_denseOut;
 
-    bool dense_out = false;
+    std::function<std::array<double, COMPONENTS>(double, std::array<double, COMPONENTS>&)> m_F{};   // f(t, y)
 
-    std::function<std::array<double, COMPONENTS>(double, std::array<double, COMPONENTS>&)> F{};   // f(t, y)
+    std::array<double, COMPONENTS> m_yn{}, m_X{}, m_K1{}, m_K2{}, m_K3{}, m_K4{}, m_K5{}, m_K6{}, m_K7{}, m_yn1{}, m_yn2{}, m_localErrs{}, m_sci{};
 
-    std::array<double, COMPONENTS> yn{}, X{}, K1{}, K2{}, K3{}, K4{}, K5{}, K6{}, K7{}, yn1{}, yn2{}, local_errs{}, sci{};
+    double m_cerr1 = 1.0, m_cerr2 = 1.0, m_rh1 = 1.0, m_rh2 = 1.0;
 
-    double cerr1 = 1.0, cerr2 = 1.0, rh1 = 1.0, rh2 = 1.0;
+    int m_acceptedSteps{};
+    int m_rejectedSteps{};
 
-    int accepted_steps = 0;
-    int rejected_steps = 0;
-
-    std::vector<std::array<double, COMPONENTS>> y_out{};    // accumulate solution steps
-    std::vector<double> t_out{};                            // accumulate time steps
+    std::vector<std::array<double, COMPONENTS>> m_yOut{};    // accumulate solution steps
+    std::vector<double> m_tOut{};                            // accumulate time steps
 
 private :
     void SetControllerParameters(double b1, double b2, double b3, double a2, double a3) {
-        beta1  = b1/k;
-        beta2  = b2/k;
-        beta3  = b3/k;
-        alpha2 = a2;
-        alpha3 = a3;
+        m_beta1  = b1/m_k;
+        m_beta2  = b2/m_k;
+        m_beta3  = b3/m_k;
+        m_alpha2 = a2;
+        m_alpha3 = a3;
     }
 
-    double L2Norm(std::array<double, COMPONENTS> &err, std::array<double, COMPONENTS> &sci)
+    double L2Norm()
     {
         /**
          * ----- Calculate error-norm ||err|| -----
@@ -89,26 +117,26 @@ private :
         double sum = 0.0;
         for (size_t i = 0; i < COMPONENTS; i++)
         {
-            sum = sum + pow(err[i] / sci[i], 2.0);
+            sum = sum + pow(m_localErrs[i] / m_sci[i], 2.0);
         }
-        return sqrt(sum/COMPONENTS);
+        return sqrt(sum / static_cast<double>(COMPONENTS));
     }
 
-    double ControlStepSize(double cerr_pres, double cerr_old1, double cerr_old2, double rho1, double rho2) {
+    double ControlStepSize(double cerrPres, double cerrOld1, double cerrOld2, double rho1, double rho2) {
         /**
          * The General controller formula for Order-Dynamics pD <= 3 with Control error filtering.
          * Reference: Digital Filters in Adaptive Time-Stepping (Sorderlind, 2003) 
          * https://dl.acm.org/doi/10.1145/641876.641877 -> page 22
          */
-        double result = pow(cerr_pres, beta1) * 
-                        pow(cerr_old1, beta2) * 
-                        pow(cerr_old2, beta3) * 
-                        pow(rho1, -alpha2) * 
-                        pow(rho2, -alpha3);
+        double result = pow(cerrPres, m_beta1) * 
+                        pow(cerrOld1, m_beta2) * 
+                        pow(cerrOld2, m_beta3) * 
+                        pow(rho1, -m_alpha2) * 
+                        pow(rho2, -m_alpha3);
         return result;
     }
 
-    double Interpolate(double theta, double h_present, double y0, double k1, double k3, double k4, double k5, double k6, double k7) {
+    std::array<double, COMPONENTS> Interpolate(double theta, double hPresent) {
 
         const double C1  = 5.0     * (2558722523.0 - 31403016.0 * theta) / 11282082432.0;
         const double C3  = 100.0   * (882725551.0  - 15701508.0 * theta) / 32700410799.0;
@@ -123,254 +151,225 @@ private :
         double term3     = theta     * pow(theta - 1.0, 2.0);
         double term4     = (theta - 1.0) * pow(theta, 2.0);
 
-        double b1_theta  = term1 * Dopri5::b1 + term3 - term2 * C1;
-        double b3_theta  = term1 * Dopri5::b3 + term2 * C3;
-        double b4_theta  = term1 * Dopri5::b4 - term2 * C4;
-        double b5_theta  = term1 * Dopri5::b5 + term2 * C5;
-        double b6_theta  = term1 * Dopri5::b6 - term2 * C6;
-        double b7_theta  = term4 + term2 * C7;
+        double b1Theta  = term1 * Dopri5::b1 + term3 - term2 * C1;
+        double b3Theta  = term1 * Dopri5::b3 + term2 * C3;
+        double b4Theta  = term1 * Dopri5::b4 - term2 * C4;
+        double b5Theta  = term1 * Dopri5::b5 + term2 * C5;
+        double b6Theta  = term1 * Dopri5::b6 - term2 * C6;
+        double b7Theta  = term4 + term2 * C7;
 
-        double solution = y0 + h_present * (b1_theta*k1 + b3_theta*k3 + b4_theta*k4 + b5_theta*k5 + b6_theta*k6 + b7_theta*k7);
+        std::array<double, COMPONENTS> solution{};
+        for (size_t i = 0; i < COMPONENTS; i++)
+        {
+            /* code */
+            solution[i] = m_yn[i] + hPresent * (b1Theta*m_K1[i] + b3Theta*m_K3[i] + b4Theta*m_K4[i] + 
+                                                b5Theta*m_K5[i] + b6Theta*m_K6[i] + b7Theta*m_K7[i]);
+        }
         return solution;
     }
 
 public :
 
     /* Setter Functions*/
-
-    // Set 'true' to add extra steps to produce smoother steps.
-    void SetDenseOut(bool is_dense_out) {
-        dense_out = is_dense_out;
-    }
-
-    // Set the [A]bsolute and [R]elative tolerance
-    void SetTolerance(double AbsTol, double RelTol) {
-        absTOL = AbsTol;
-        relTol = RelTol;
-    }
-
     /*  Member Functions */
     void DisplayStatus() {
-        std::cout << "Accepted steps: " << accepted_steps << " Rejected steps: " << rejected_steps << std::endl;
+        std::cout << "Accepted steps: " << m_acceptedSteps << " Rejected steps: " << m_rejectedSteps << std::endl;
     }
 
     void DisplaySteps() {
         std::cout << std::setprecision(15) << std::fixed;
 
-        for (size_t i = 0; i < y_out.size(); i++)
+        for (size_t i = 0; i < m_yOut.size(); i++)
         {
             /* code */
-            std::cout << "Step: " << i << " Time: " << t_out[i] << '\n';
+            std::cout << "Step: " << i << " Time: " << m_tOut[i] << '\n';
             for (int j = 0; j < COMPONENTS; j++)
             {
-                std::cout << y_out[i][j] << " ";
+                std::cout << m_yOut[i][j] << " ";
             }
             std::cout << "\n\n";
         }
     }
-
-    Solver(int controller, std::array<double, COMPONENTS> &y0, double stepsize, double t0, double T_end, 
-    std::function<std::array<double, COMPONENTS>(double, std::array<double, COMPONENTS>&)> fname)
+    
+    // Solver(controllerType, f(t, y), y0, h, t0, tFinal, absTolerance=1E-6, relTolerance=1E-4, denseOut=false)
+    Solver(Controller::Controllers controller, std::function<std::array<double, COMPONENTS>(double, std::array<double, COMPONENTS>&)> fName, 
+           std::array<double, COMPONENTS> &y0, double stepSize, double t0, double tFinal, double absTol=1e-6, double relTol=1e-4, bool denseOut=false) : 
+           m_F { fName },
+           m_t { t0 },  
+           m_h { stepSize }, 
+           m_tFinal { tFinal }, 
+           m_absTol { absTol }, 
+           m_relTol { relTol },
+           m_denseOut { denseOut }
     {
-        t = t0;
-        h = stepsize;
-        t_end = T_end;
-        F = fname;
 
         for (size_t i = 0; i < COMPONENTS; i++)
         {
             /* code */
-            yn[i] = y0[i];
+            m_yn[i] = y0[i];
         }
 
         switch (controller) 
         {
             // set the parameters
-            case 0 :   // STANDARD
+            case Controller::STANDARD :   
                 SetControllerParameters(1.0, 0.0, 0.0, 0.0, 0.0);
                 break;
-            case 1 :   // H211PI
+            case Controller::H211PI :   
                 SetControllerParameters(1.0/6.0, 1.0/6.0, 0.0, 0.0, 0.0);
                 break;
-            case 2 :   // H312PID
+            case Controller::H312PID :   
                 SetControllerParameters(1.0/18.0, 1.0/9.0, 1.0/18.0, 0.0, 0.0);
                 break;
-            case 3 :  // H211b, b = 4.0
+            case Controller::H211B :  // b = 4.0
                 SetControllerParameters(1.0/4.0, 1.0/4.0, 0.0, 1.0/4.0, 0.0);
                 break;
-            case 4 :  //H312b, b = 8.0
+            case Controller::H312B :  // b = 8.0
                 SetControllerParameters(1.0/8.0, 1.0/8.0, 1.0/8.0, 3.0/8.0, 1.0/8.0);
                 break;
-            case 5 :  // PI42
+            case Controller::PI42 :
                 SetControllerParameters(3.0/5.0, -1.0/5.0, 0.0, 0.0, 0.0);
                 break;
         }
     }
 
-    void Solve() {
-
-
+    void Solve() 
+    {
         // Add the initial value
-        t_out.push_back(t);
-        y_out.push_back(yn);
+        m_tOut.push_back(m_t);
+        m_yOut.push_back(m_yn);
 
         // Begin the stepper
-        while (t < t_end) {
-            h = std::min(h, t_end - t);
+        while (m_t < m_tFinal) 
+        {
+            m_h = std::min(m_h, m_tFinal - m_t);
 
             for (size_t i = 0; i < COMPONENTS; i++) 
             {
-                X[i] = yn[i];
+                m_X[i] = m_yn[i];
             }
 
-            K1 = F(t, X); //--------------------- 1ST-stage -----------------------
+            m_K1 = F(m_t, m_X); //--------------------- 1ST-stage -----------------------
 
             for (size_t i = 0; i < COMPONENTS; i++) 
             {
-                X[i]  = yn[i] + h * (Dopri5::a21*K1[i]); 
+                m_X[i] = m_yn[i] + m_h * (Dopri5::a21*m_K1[i]); 
             }
 
-            K2 = F(t + Dopri5::c2*h, X); //--------------------- 2ND-stage -----------------------
+            m_K2 = F(m_t + Dopri5::c2*m_h, m_X); //--------------------- 2ND-stage -----------------------
 
             for (size_t i = 0; i < COMPONENTS; i++) 
             {
-                X[i]  = yn[i] + h * (Dopri5::a31*K1[i] + Dopri5::a32*K2[i]);
+                m_X[i] = m_yn[i] + m_h * (Dopri5::a31*m_K1[i] + Dopri5::a32*m_K2[i]);
             }
 
-            K3 = F(t + Dopri5::c3*h, X); //--------------------- 3RD-stage -----------------------
+            m_K3 = F(m_t + Dopri5::c3*m_h, m_X); //--------------------- 3RD-stage -----------------------
 
             for (size_t i = 0; i < COMPONENTS; i++) 
             {
-                X[i]  = yn[i] + h * (Dopri5::a41*K1[i] + Dopri5::a42*K2[i] + Dopri5::a43*K3[i]);
+                m_X[i] = m_yn[i] + m_h * (Dopri5::a41*m_K1[i] + Dopri5::a42*m_K2[i] + 
+                                          Dopri5::a43*m_K3[i]);
             }
 
-            K4 = F(t + Dopri5::c4*h, X); //--------------------- 4TH-stage -----------------------
+            m_K4 = F(m_t + Dopri5::c4*m_h, m_X); //--------------------- 4TH-stage -----------------------
 
             for (size_t i = 0; i < COMPONENTS; i++) 
             {
-                X[i]  = yn[i] + h * (Dopri5::a51*K1[i] + Dopri5::a52*K2[i] + Dopri5::a53*K3[i] + Dopri5::a54*K4[i]);
+                m_X[i] = m_yn[i] + m_h * (Dopri5::a51*m_K1[i] + Dopri5::a52*m_K2[i] + 
+                                          Dopri5::a53*m_K3[i] + Dopri5::a54*m_K4[i]);
             }
 
-            K5 = F(t + Dopri5::c5*h, X); //--------------------- 5TH-stage -----------------------
+            m_K5 = F(m_t + Dopri5::c5*m_h, m_X); //--------------------- 5TH-stage -----------------------
 
             for (size_t i = 0; i < COMPONENTS; i++) 
             {
-                X[i]  = yn[i] + h * (Dopri5::a61*K1[i] + Dopri5::a62*K2[i] + Dopri5::a63*K3[i] + Dopri5::a64*K4[i] + Dopri5::a65*K5[i]);
+                m_X[i] = m_yn[i] + m_h * (Dopri5::a61*m_K1[i] + Dopri5::a62*m_K2[i] + 
+                                          Dopri5::a63*m_K3[i] + Dopri5::a64*m_K4[i] + Dopri5::a65*m_K5[i]);
             }
 
-            K6 = F(t + h, X); //--------------------- 6TH-stage -----------------------
+            m_K6 = F(m_t + m_h, m_X); //--------------------- 6TH-stage -----------------------
 
             for (size_t i = 0; i < COMPONENTS; i++) 
             {
-                X[i]  = yn[i] + h * (Dopri5::a71*K1[i] + Dopri5::a72*K3[i] + Dopri5::a73*K4[i] + Dopri5::a74*K5[i] + Dopri5::a75*K6[i]);
+                m_X[i] = m_yn[i] + m_h * (Dopri5::a71*m_K1[i] + Dopri5::a72*m_K3[i] + 
+                                          Dopri5::a73*m_K4[i] + Dopri5::a74*m_K5[i] + Dopri5::a75*m_K6[i]);
             }
 
-            K7 = F(t + h, X); //--------------------- 7TH-stage -----------------------
+            m_K7 = F(m_t + m_h, m_X); //--------------------- 7TH-stage -----------------------
 
             // Calculate the 5th-order accurate solution and the alternative 4th-order solution for the error estimation.
             for (size_t i = 0; i < COMPONENTS; i++)
             {
-                yn1[i] = yn[i] + h * (Dopri5::b1*K1[i] + Dopri5::b3*K3[i] + Dopri5::b4*K4[i] + Dopri5::b5*K5[i] + Dopri5::b6*K6[i]);               // 5th-Order accurate solution.
-                yn2[i] = yn[i] + h * (Dopri5::e1*K1[i] + Dopri5::e3*K3[i] + Dopri5::e4*K4[i] + Dopri5::e5*K5[i] + Dopri5::e6*K6[i] + Dopri5::e7*K7[i]);   // 4th-Order alternative solution for local-error estimation.
+                m_yn1[i] = m_yn[i] + m_h * (Dopri5::b1*m_K1[i] + Dopri5::b3*m_K3[i] + 
+                                            Dopri5::b4*m_K4[i] + Dopri5::b5*m_K5[i] + Dopri5::b6*m_K6[i]);               // 5th-Order accurate solution.
+                m_yn2[i] = m_yn[i] + m_h * (Dopri5::e1*m_K1[i] + Dopri5::e3*m_K3[i] + 
+                                            Dopri5::e4*m_K4[i] + Dopri5::e5*m_K5[i] + Dopri5::e6*m_K6[i] + Dopri5::e7*m_K7[i]);   // 4th-Order alternative solution for local-error estimation.
             }
 
             // Calculate local errors
             for (size_t i = 0; i < COMPONENTS; i++) 
             {
-                local_errs[i] = h * (yn2[i] - yn1[i]);
+                m_localErrs[i] = m_h * (m_yn2[i] - m_yn1[i]);
             }
 
             for (size_t i = 0; i < COMPONENTS; i++)
             {
-                /* 
-                 * absTol and relTol are the desired tolerances prescribed by the user. 
-                 * Note: absTol and relTol can be a vector meaning you can set a different values of absTol and relTol for every component in yn.
-                 * Ex. If we have a 2D(x, y)-component vector then x = (absTol, relTol) = (1e-06, 1e-03) and y = (absTol, relTol) = (1e-08, 1e-06).
-                 */
-                sci[i] = absTOL + std::max(fabs(yn[i]), fabs(yn1[i])) * relTol;  // We will just use the same absTol and relTol for all component in yn.
+                // absTol and relTol are the desired tolerances prescribed by the user. 
+                m_sci[i] = m_absTol + std::max(fabs(m_yn[i]), fabs(m_yn1[i])) * m_relTol;
             }
 
             // local error is controlled by error-per-unit-steps (EPUS) or error-per-steps (EPS)
-            // let r = L2Norm(local_errs, sci) / h;  // Error-per-unit-steps (EPUS)
-            double r = L2Norm(local_errs, sci);   // Error-per-steps (EPS)
+            // let r = L2Norm(localErrs, sci) / h;  // Error-per-unit-steps (EPUS)
+            double r = L2Norm();   // Error-per-steps (EPS)
 
             double cerr = 1.0 / r;
 
-            double rho = ControlStepSize(cerr, cerr1, cerr2, rh1, rh2);
+            double rho = ControlStepSize(cerr, m_cerr1, m_cerr2, m_rh1, m_rh2);
 
             // Save previous values for the next step.
-            cerr2 = cerr1;
-            cerr1 = cerr;
+            m_cerr2 = m_cerr1;
+            m_cerr1 = cerr;
 
-            rh2 = rh1;
-            rh1 = rho;
+            m_rh2 = m_rh1;
+            m_rh1 = rho;
 
             // Apply a limiter
-            double ratio = 1.0 + kappa * atan((rho - 1.0) / kappa);
+            double ratio = 1.0 + m_kappa * atan((rho - 1.0) / m_kappa);
 
-            if (ratio < accept_SF) { // Reject steps and recalculate with the new stepsize
-                h = ratio * h;
-                rejected_steps++;
+            if (ratio < m_acceptSF) { // Reject steps and recalculate with the new stepsize
+                m_h = ratio * m_h;
+                m_rejectedSteps++;
                 continue;
             } 
             else {  // Accept steps and the solution is advanced with yn1 and tried with the new stepsize.
 
-                if (dense_out) {
-                    
-                    std::array<double, COMPONENTS> extra_steps{};
-                    double theta = 0.5; /// theta = [0, 1], theta = 0 => yn, theta = 1 => yn1
-                    for (int i = 0; i < COMPONENTS; i++)
-                    {
-                        // interpolate at theta = 0.5
-                        double step    = Interpolate(0.5, h, yn[i], K1[i], K3[i], K4[i], K5[i], K6[i], K7[i]);     // Interpolate on the ith-component of yn
-                        extra_steps[i] = step;
-                    }
-                    t_out.push_back(t + theta*h);
-                    y_out.push_back(extra_steps);
+                if (m_denseOut) 
+                {
+                    /*
+                     * theta ∈ [0, 1], theta = 0 => yn, theta = 1 => yn1
+                     * Interpolate at open-interval theta ∈ (0, 1)
+                     * un+1(t + theta*h) = yn + h * sum(bi(theta)*Ki), i = 1...s, theta ∈ (0, 1)
+                     */
+                    double theta = 0.5; 
+                    std::array<double, COMPONENTS> extraSteps = Interpolate(theta, m_h);
+                    m_tOut.push_back(m_t + theta*m_h);
+                    m_yOut.push_back(extraSteps);
                 }
 
-                t = t + h;
-                h = ratio * h;
-                accepted_steps++;
+                m_t = m_t + m_h;
+                m_h = ratio * m_h;
+                m_acceptedSteps++;
 
-                t_out.push_back(t);
-                y_out.push_back(yn1);
+                m_tOut.push_back(m_t);
+                m_yOut.push_back(m_yn1);
 
                 for (size_t i = 0; i < COMPONENTS; i++)
                 {
-                    yn[i] = yn1[i];
+                    m_yn[i] = m_yn1[i];
                 }
             }
         }
     }
-};
-
-enum class Controller
-{
-    // Warning: Don't change the order.
-    STANDARD, // assign 0
-    H211PI,   // assign 1
-    H312PID,  // assign 2
-    H211B,    // assign 3
-    H312B,    // assign 4
-    PI42,
-
-
-    /*
-     ***Recommended Controllers with Stepsize Low-Pass Filters and their Problem Classes***
-     *  Reference: Digital Filters in Adaptive Time-Stepping (Sorderlind, 2003) 
-     *  https://dl.acm.org/doi/10.1145/641876.641877 -> Table III. page 24
-     */
-
-    /*--------------------------------------------------------------------------
-     * kbeta1 | kbeta2 | kbeta3 | alpha2 | alpha3 | Class    | Problem Type
-     *-------------------------------------------------------------------------
-     * 1/b    | 1/b    | 0      | 1/b    | 0      | H211b    | medium to nonsmooth
-     * 1/6    | 1/6    | 0      | 0      | 0      | H211 PI  | medium to nonsmooth
-     * 1/b    | 2/b    | 1/b    | 3/b    | 1/b    | H312b    | nonsmooth
-     * 1/18   | 1/9    | 1/18   | 0      | 0      | H312 PID | nonsmooth
-     *-------------------------------------------------------------------------
-    */
 };
 
 // Example problem
@@ -386,14 +385,11 @@ int main(void) {
     
     std::array<double, COMPONENTS> y0 = {0.5};
     double t0 = 0.0;
-    double stepsize = 0.2;
-    double T_end = 2.0;
+    double tFinal = 2.0;
+    double stepSize = 0.2;
 
-    Controller controller = Controller::H312B;      // Choose a controller
-
-    Solver solver(static_cast<int> (controller), y0, stepsize, t0, T_end, F);
-    solver.SetTolerance(1e-06, 1e-04);
-    solver.SetDenseOut(false);
+    Controller::Controllers controller = Controller::STANDARD;      // Choose a controller
+    Solver solver(controller, F, y0, stepSize, t0, tFinal);
     solver.Solve();
     solver.DisplaySteps();
     solver.DisplayStatus();
