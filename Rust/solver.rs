@@ -109,8 +109,9 @@ const ALPHA3: f64 = 0.0;
 // const ALPHA2: f64 = 0.0;
 // const ALPHA3: f64 = 0.0;
 
-const K: f64 = 4.0; // EPS => k = p + 1 and EPUS => k = p, where p is the order-of-error of the method.
-const KAPPA: f64 = 1.35; // kappa ∈ [0.7, 2] as suggested in the literature
+const P: f64 = 4.0;          // the order corresponding to the RK method
+const K: f64 = P + 1.0;      // EPS => k = p + 1 and EPUS => k = p
+const KAPPA: f64 = 1.0;      // kappa ∈ [0.7, 2] as suggested in the literature
 const ACCEPT_SF: f64 = 0.90; // accept safety factor
 
 // ODE function
@@ -293,8 +294,10 @@ fn solve(
              */
             sc_i[i] = abs_tol + f64::max(y[i].abs(), y1[i].abs()) * rel_tol; // We will just use the same absTol and relTol for all component in y.
         }
-        let err_norm: f64 = l2_norm(&local_errs, &sc_i);
-        let r: f64 = err_norm / h; // local error is controlled by error per unit step (EPUS).
+        // local error is controlled by error-per-unit-steps (EPUS) or error-per-steps (EPS).
+        // let r: f64 = l2_norm(&local_errs, &sc_i) / h;  // Error-per-unit-steps (EPUS)
+        let r: f64 = l2_norm(&local_errs, &sc_i);  // Error-per-steps (EPS)
+
         let cerr: f64 = 1.0 / r;
         let rho: f64 = control_step_size(cerr, cerr1, cerr2, rh1, rh2);
 

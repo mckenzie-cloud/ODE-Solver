@@ -45,7 +45,8 @@ namespace Dopri5
 class Solver {
 
 private :
-    const double k         = 4.0;        // EPS => k = p + 1 and EPUS => k = p, where p is the order-of-error of the method.
+    const double p         = 4.0;        // the order corresponding to the RK method
+    const double k         = p + 1.0;    // EPS => k = p + 1 and EPUS => k = p
     const double kappa     = 1.35;       // kappa ∈ [0.7, 2] as suggested in the literature
     const double accept_SF = 0.90;       // accept safety factor
 
@@ -289,8 +290,9 @@ public :
                 sci[i] = absTOL + std::max(fabs(yn[i]), fabs(yn1[i])) * relTol;  // We will just use the same absTol and relTol for all component in yn.
             }
 
-            double err_norm = L2Norm(local_errs, sci);   
-            double r = err_norm / h;                     // local error is controlled by error per unit step (EPUS).
+            // local error is controlled by error-per-unit-steps (EPUS) or error-per-steps (EPS)
+            // let r = L2Norm(local_errs, sci) / h;  // Error-per-unit-steps (EPUS)
+            double r = L2Norm(local_errs, sci);   // Error-per-steps (EPS)
 
             double cerr = 1.0 / r;
 
