@@ -275,10 +275,11 @@ fn solve(
         }
 
         k7 = f(t + h, &x);
+        // Calculate the 5th-order and 4th-order accurate solution.
         for i in 0..COMPONENTS {
-            // 5th-Order accurate solution.
+            // 5th-Order accurate solution. Used to advance the solution.
             y1[i] = y[i] + h * (B1 * k1[i] + B3 * k3[i] + B4 * k4[i] + B5 * k5[i] + B6 * k6[i]);
-            // 4th-Order alternative solution for local-error estimation.
+            // 4th-Order accurate solution. Used for comparison to estimate error.
             y2[i] = y[i]
                 + h * (E1 * k1[i] + E3 * k3[i] + E4 * k4[i] + E5 * k5[i] + E6 * k6[i] + E7 * k7[i]);
         }
@@ -289,12 +290,6 @@ fn solve(
         }
 
         for i in 0..COMPONENTS {
-            /*
-             * absTol and relTol are the desired tolerances prescribed by the user.
-             * Note: absTol and relTol can be a vector meaning you can set a different values of absTol and relTol for every component in y.
-             * Ex. If we have a 2D(x, y)-component vector then we can set x = (absTol, relTol) = (1e-06, 1e-03) and
-             * y = (absTol, relTol) = (1e-08, 1e-06).
-             */
             sc_i[i] = abs_tol + f64::max(y[i].abs(), y1[i].abs()) * rel_tol; // We will just use the same absTol and relTol for all component in y.
         }
         // local error is controlled by error-per-unit-steps (EPUS) or error-per-steps (EPS).

@@ -297,13 +297,13 @@ public :
 
             m_K7 = F(m_t + m_h, m_X); //--------------------- 7TH-stage -----------------------
 
-            // Calculate the 5th-order accurate solution and the alternative 4th-order solution for the error estimation.
+            // Calculate the 5th-order and 4th-order accurate solution.
             for (size_t i = 0; i < COMPONENTS; i++)
             {
                 m_yn1[i] = m_yn[i] + m_h * (Dopri5::b1*m_K1[i] + Dopri5::b3*m_K3[i] + 
-                                            Dopri5::b4*m_K4[i] + Dopri5::b5*m_K5[i] + Dopri5::b6*m_K6[i]);               // 5th-Order accurate solution.
+                                            Dopri5::b4*m_K4[i] + Dopri5::b5*m_K5[i] + Dopri5::b6*m_K6[i]);     // 5th-Order accurate solution. Used to advance the solution.
                 m_yn2[i] = m_yn[i] + m_h * (Dopri5::e1*m_K1[i] + Dopri5::e3*m_K3[i] + 
-                                            Dopri5::e4*m_K4[i] + Dopri5::e5*m_K5[i] + Dopri5::e6*m_K6[i] + Dopri5::e7*m_K7[i]);   // 4th-Order alternative solution for local-error estimation.
+                                            Dopri5::e4*m_K4[i] + Dopri5::e5*m_K5[i] + Dopri5::e6*m_K6[i] + Dopri5::e7*m_K7[i]);   // 4th-Order accurate solution. Used for comparison to estimate error.
             }
 
             // Calculate local errors
