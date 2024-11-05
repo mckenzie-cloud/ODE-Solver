@@ -10,7 +10,7 @@
  *
  * Copyright (c) 2024 Mckenzie Regalado - All Rights Reserved.
  * Philippines
- 
+
  * References :
  * [1] J.R. Dormand, & P.J. Prince (1980). A family of embedded Runge-Kutta formulae. Journal of Computational and Applied Mathematics, 6(1), 19-26.
  * [2] Gustafsson, K. (1991). Control Theoretic Techniques for Stepsize Selection in Explicit Runge-Kutta Methods. ACM Transactions on Mathematical Software, 17(4), 533-554.
@@ -190,7 +190,7 @@ public :
             std::cout << "\n\n";
         }
     }
-    
+
     // Solver(controllerType, f(t, y), y0, h, t0, tFinal, absTolerance=1E-6, relTolerance=1E-4, denseOut=false)
     Solver(Controller::Controllers controller, std::function<std::array<double, COMPONENTS>(double, std::array<double, COMPONENTS>&)> fName, 
            std::array<double, COMPONENTS> &y0, double stepSize, double t0, double tFinal, double absTol=1e-6, double relTol=1e-4, bool denseOut=false) : 
@@ -249,21 +249,21 @@ public :
                 m_X[i] = m_yn[i];
             }
 
-            m_K1 = F(m_t, m_X); //--------------------- 1ST-stage -----------------------
+            m_K1 = m_F(m_t, m_X); //--------------------- 1ST-stage -----------------------
 
             for (size_t i = 0; i < COMPONENTS; i++) 
             {
                 m_X[i] = m_yn[i] + m_h * (Dopri5::a21*m_K1[i]); 
             }
 
-            m_K2 = F(m_t + Dopri5::c2*m_h, m_X); //--------------------- 2ND-stage -----------------------
+            m_K2 = m_F(m_t + Dopri5::c2*m_h, m_X); //--------------------- 2ND-stage -----------------------
 
             for (size_t i = 0; i < COMPONENTS; i++) 
             {
                 m_X[i] = m_yn[i] + m_h * (Dopri5::a31*m_K1[i] + Dopri5::a32*m_K2[i]);
             }
 
-            m_K3 = F(m_t + Dopri5::c3*m_h, m_X); //--------------------- 3RD-stage -----------------------
+            m_K3 = m_F(m_t + Dopri5::c3*m_h, m_X); //--------------------- 3RD-stage -----------------------
 
             for (size_t i = 0; i < COMPONENTS; i++) 
             {
@@ -271,7 +271,7 @@ public :
                                           Dopri5::a43*m_K3[i]);
             }
 
-            m_K4 = F(m_t + Dopri5::c4*m_h, m_X); //--------------------- 4TH-stage -----------------------
+            m_K4 = m_F(m_t + Dopri5::c4*m_h, m_X); //--------------------- 4TH-stage -----------------------
 
             for (size_t i = 0; i < COMPONENTS; i++) 
             {
@@ -279,7 +279,7 @@ public :
                                           Dopri5::a53*m_K3[i] + Dopri5::a54*m_K4[i]);
             }
 
-            m_K5 = F(m_t + Dopri5::c5*m_h, m_X); //--------------------- 5TH-stage -----------------------
+            m_K5 = m_F(m_t + Dopri5::c5*m_h, m_X); //--------------------- 5TH-stage -----------------------
 
             for (size_t i = 0; i < COMPONENTS; i++) 
             {
@@ -287,7 +287,7 @@ public :
                                           Dopri5::a63*m_K3[i] + Dopri5::a64*m_K4[i] + Dopri5::a65*m_K5[i]);
             }
 
-            m_K6 = F(m_t + m_h, m_X); //--------------------- 6TH-stage -----------------------
+            m_K6 = m_F(m_t + m_h, m_X); //--------------------- 6TH-stage -----------------------
 
             for (size_t i = 0; i < COMPONENTS; i++) 
             {
@@ -295,7 +295,7 @@ public :
                                           Dopri5::a73*m_K4[i] + Dopri5::a74*m_K5[i] + Dopri5::a75*m_K6[i]);
             }
 
-            m_K7 = F(m_t + m_h, m_X); //--------------------- 7TH-stage -----------------------
+            m_K7 = m_F(m_t + m_h, m_X); //--------------------- 7TH-stage -----------------------
 
             // Calculate the 5th-order and 4th-order accurate solution.
             for (size_t i = 0; i < COMPONENTS; i++)
@@ -309,7 +309,11 @@ public :
             // Calculate local errors
             for (size_t i = 0; i < COMPONENTS; i++) 
             {
-                m_localErrs[i] = m_h * (m_yn2[i] - m_yn1[i]);
+                m_localErrs[i] = m_h * ((Dopri5::b1 - Dopri5::e1)*m_K1[i] + 
+                                        (Dopri5::b3 - Dopri5::e3)*m_K3[i] +
+                                        (Dopri5::b4 - Dopri5::e4)*m_K4[i] +
+                                        (Dopri5::b5 - Dopri5::e5)*m_K5[i] +
+                                        (Dopri5::b6 - Dopri5::e6)*m_K6[i] - Dopri5::e7*m_K7[i]);
             }
 
             for (size_t i = 0; i < COMPONENTS; i++)
@@ -382,7 +386,7 @@ std::array<double, COMPONENTS> F(double t, std::array<double, COMPONENTS> &X) { 
 }
 
 int main(void) {
-    
+
     std::array<double, COMPONENTS> y0 = {0.5};
     double t0 = 0.0;
     double tFinal = 2.0;
