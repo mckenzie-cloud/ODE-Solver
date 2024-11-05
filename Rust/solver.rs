@@ -286,7 +286,7 @@ fn solve(
 
         // calculate local errors.
         for i in 0..COMPONENTS {
-            local_errs[i] = h * (y2[i] - y1[i]);
+            local_errs[i] = h * ((B1 - E1)*k1[i] + (B3 - E3)*k3[i] + (B4 - E4)*k4[i] + (B5 - E5)*k5[i] + (B6 - E6)*k6[i] - E7*k7[i]);
         }
 
         for i in 0..COMPONENTS {
