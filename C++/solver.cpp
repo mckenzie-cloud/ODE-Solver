@@ -21,9 +21,9 @@
  *
 */ 
 
-#define COMPONENTS 1 // It is simply the size of the array (ex. 2D-array is (x, y) component, 3D-array is (x, y, z) component
+#define DIMENSIONS 1
 
-namespace Dopri5
+namespace Dopri54
 {
     // We will be using the Dormand-Prince 5(4) order method.
     // The Butcher Tableau is :
@@ -42,7 +42,7 @@ namespace Dopri5
     constexpr double e1  = 5179.0/57600.0,  e3 = 7571.0/16695.0,  e4  = 393.0/640.0,    e5  = -92097.0/339200.0, e6  = 187.0/2100.0, e7 = 1.0/40.0;
 }
 
-namespace Controller
+namespace StepSizeController
 {
     enum Controllers
     {
@@ -76,10 +76,14 @@ namespace Controller
 class Solver {
 
 private :
-    const double m_p         = 4.0;        // the order corresponding to the RK method
-    const double m_k         = m_p + 1.0;    // EPS => k = p + 1 and EPUS => k = p
-    const double m_kappa     = 1.0;        // kappa ∈ [0.7, 2] as suggested in the literature
-    const double m_acceptSF = 0.90;       // accept safety factor
+    const double m_p        = 4.0;        // the order corresponding to the RK method
+    const double m_k        = m_p + 1.0;  // EPS => k = p + 1 and EPUS => k = p
+    const double m_kappa    = 1.5;        // kappa ∈ [0.7, 2] as suggested in the literature
+    const double m_acceptSF = 0.81;       // accept safety factor
+
+    std::function<std::array<double, DIMENSIONS>(double, std::array<double, DIMENSIONS>&)> m_F{};   // f(t, y)
+
+    std::array<double, DIMENSIONS> m_yn{}, m_X{}, m_K1{}, m_K2{}, m_K3{}, m_K4{}, m_K5{}, m_K6{}, m_K7{}, m_yn1{}, m_yn2{}, m_truncationErrors{}, m_sci{};
 
     double m_h{}, m_t{}, m_tFinal{}, m_absTol{}, m_relTol{};
 
@@ -87,17 +91,10 @@ private :
 
     bool m_denseOut;
 
-    std::function<std::array<double, COMPONENTS>(double, std::array<double, COMPONENTS>&)> m_F{};   // f(t, y)
-
-    std::array<double, COMPONENTS> m_yn{}, m_X{}, m_K1{}, m_K2{}, m_K3{}, m_K4{}, m_K5{}, m_K6{}, m_K7{}, m_yn1{}, m_yn2{}, m_localErrs{}, m_sci{};
-
     double m_cerr1 = 1.0, m_cerr2 = 1.0, m_rh1 = 1.0, m_rh2 = 1.0;
 
     int m_acceptedSteps{};
     int m_rejectedSteps{};
-
-    std::vector<std::array<double, COMPONENTS>> m_yOut{};    // accumulate solution steps
-    std::vector<double> m_tOut{};                            // accumulate time steps
 
 private :
     void SetControllerParameters(double b1, double b2, double b3, double a2, double a3) {
@@ -112,14 +109,14 @@ private :
     {
         /**
          * ----- Calculate error-norm ||err|| -----
-         * We will be using the L2-Norm or the Euclidean Norm.
+         * using the L2-Norm or the Euclidean Norm.
          * */
         double sum = 0.0;
-        for (size_t i = 0; i < COMPONENTS; i++)
+        for (size_t i = 0; i < DIMENSIONS; i++)
         {
-            sum = sum + pow(m_localErrs[i] / m_sci[i], 2.0);
+            sum = sum + std::pow(m_truncationErrors[i] / m_sci[i], 2.0);
         }
-        return sqrt(sum / static_cast<double>(COMPONENTS));
+        return std::sqrt(sum / static_cast<double>(DIMENSIONS));
     }
 
     double ControlStepSize(double cerrPres, double cerrOld1, double cerrOld2, double rho1, double rho2) {
@@ -128,15 +125,15 @@ private :
          * Reference: Digital Filters in Adaptive Time-Stepping (Sorderlind, 2003) 
          * https://dl.acm.org/doi/10.1145/641876.641877 -> page 22
          */
-        double result = pow(cerrPres, m_beta1) * 
-                        pow(cerrOld1, m_beta2) * 
-                        pow(cerrOld2, m_beta3) * 
-                        pow(rho1, -m_alpha2) * 
-                        pow(rho2, -m_alpha3);
+        double result = std::pow(cerrPres, m_beta1) * 
+                        std::pow(cerrOld1, m_beta2) * 
+                        std::pow(cerrOld2, m_beta3) * 
+                        std::pow(rho1, -m_alpha2) * 
+                        std::pow(rho2, -m_alpha3);
         return result;
     }
 
-    std::array<double, COMPONENTS> Interpolate(double theta, double hPresent) {
+    std::array<double, DIMENSIONS> Interpolate(double theta, double hPresent) {
 
         const double C1  = 5.0     * (2558722523.0 - 31403016.0 * theta) / 11282082432.0;
         const double C3  = 100.0   * (882725551.0  - 15701508.0 * theta) / 32700410799.0;
@@ -145,21 +142,21 @@ private :
         const double C6  = 55.0    * (29972135.0   - 7076736.0  * theta) / 822651844.0;
         const double C7  = 10.0    * (7414447.0    - 829305.0   * theta) / 29380423.0;
 
-        double theta_sqr = pow(theta, 2.0);
+        double theta_sqr = std::pow(theta, 2.0);
         double term1     = theta_sqr * (3.0 - 2.0 * theta);
-        double term2     = theta_sqr * pow(theta - 1.0, 2.0);
-        double term3     = theta     * pow(theta - 1.0, 2.0);
-        double term4     = (theta - 1.0) * pow(theta, 2.0);
+        double term2     = theta_sqr * std::pow(theta - 1.0, 2.0);
+        double term3     = theta     * std::pow(theta - 1.0, 2.0);
+        double term4     = (theta - 1.0) * std::pow(theta, 2.0);
 
-        double b1Theta  = term1 * Dopri5::b1 + term3 - term2 * C1;
-        double b3Theta  = term1 * Dopri5::b3 + term2 * C3;
-        double b4Theta  = term1 * Dopri5::b4 - term2 * C4;
-        double b5Theta  = term1 * Dopri5::b5 + term2 * C5;
-        double b6Theta  = term1 * Dopri5::b6 - term2 * C6;
+        double b1Theta  = term1 * Dopri54::b1 + term3 - term2 * C1;
+        double b3Theta  = term1 * Dopri54::b3 + term2 * C3;
+        double b4Theta  = term1 * Dopri54::b4 - term2 * C4;
+        double b5Theta  = term1 * Dopri54::b5 + term2 * C5;
+        double b6Theta  = term1 * Dopri54::b6 - term2 * C6;
         double b7Theta  = term4 + term2 * C7;
 
-        std::array<double, COMPONENTS> solution{};
-        for (size_t i = 0; i < COMPONENTS; i++)
+        std::array<double, DIMENSIONS> solution{};
+        for (size_t i = 0; i < DIMENSIONS; i++)
         {
             /* code */
             solution[i] = m_yn[i] + hPresent * (b1Theta*m_K1[i] + b3Theta*m_K3[i] + b4Theta*m_K4[i] + 
@@ -169,65 +166,34 @@ private :
     }
 
 public :
-
-    /* Setter Functions*/
-    /*  Member Functions */
-    void DisplayStatus() {
-        std::cout << "Accepted steps: " << m_acceptedSteps << " Rejected steps: " << m_rejectedSteps << std::endl;
-    }
-
-    void DisplaySteps() {
-        std::cout << std::setprecision(15) << std::fixed;
-
-        for (size_t i = 0; i < m_yOut.size(); i++)
-        {
-            /* code */
-            std::cout << "Step: " << i << " Time: " << m_tOut[i] << '\n';
-            for (int j = 0; j < COMPONENTS; j++)
-            {
-                std::cout << m_yOut[i][j] << " ";
-            }
-            std::cout << "\n\n";
-        }
-    }
+    std::vector<std::array<double, DIMENSIONS>> m_yOut{};    // accumulate solution steps
+    std::vector<double> m_tOut{};                            // accumulate time steps
 
     // Solver(controllerType, f(t, y), y0, h, t0, tFinal, absTolerance=1E-6, relTolerance=1E-4, denseOut=false)
-    Solver(Controller::Controllers controller, std::function<std::array<double, COMPONENTS>(double, std::array<double, COMPONENTS>&)> fName, 
-           std::array<double, COMPONENTS> &y0, double stepSize, double t0, double tFinal, double absTol=1e-6, double relTol=1e-4, bool denseOut=false) : 
-           m_F { fName },
-           m_t { t0 },  
-           m_h { stepSize }, 
-           m_tFinal { tFinal }, 
-           m_absTol { absTol }, 
-           m_relTol { relTol },
-           m_denseOut { denseOut }
+    Solver(StepSizeController::Controllers controller, std::function<std::array<double, DIMENSIONS>(double, std::array<double, DIMENSIONS>&)> fName, 
+           std::array<double, DIMENSIONS> &y0, double stepSize, double t0, double tFinal, double absTol=1e-6, double relTol=1e-4, bool denseOut=false) 
+           : m_F {fName}, m_yn {y0}, m_h {stepSize}, m_t {t0}, m_tFinal {tFinal}, m_absTol {absTol}, m_relTol {relTol}, m_denseOut {denseOut}
     {
-
-        for (size_t i = 0; i < COMPONENTS; i++)
-        {
-            /* code */
-            m_yn[i] = y0[i];
-        }
 
         switch (controller) 
         {
             // set the parameters
-            case Controller::STANDARD :   
+            case StepSizeController::STANDARD :   
                 SetControllerParameters(1.0, 0.0, 0.0, 0.0, 0.0);
                 break;
-            case Controller::H211PI :   
+            case StepSizeController::H211PI :   
                 SetControllerParameters(1.0/6.0, 1.0/6.0, 0.0, 0.0, 0.0);
                 break;
-            case Controller::H312PID :   
+            case StepSizeController::H312PID :   
                 SetControllerParameters(1.0/18.0, 1.0/9.0, 1.0/18.0, 0.0, 0.0);
                 break;
-            case Controller::H211B :  // b = 4.0
+            case StepSizeController::H211B :  // b = 4.0
                 SetControllerParameters(1.0/4.0, 1.0/4.0, 0.0, 1.0/4.0, 0.0);
                 break;
-            case Controller::H312B :  // b = 8.0
+            case StepSizeController::H312B :  // b = 8.0
                 SetControllerParameters(1.0/8.0, 1.0/8.0, 1.0/8.0, 3.0/8.0, 1.0/8.0);
                 break;
-            case Controller::PI42 :
+            case StepSizeController::PI42 :
                 SetControllerParameters(3.0/5.0, -1.0/5.0, 0.0, 0.0, 0.0);
                 break;
         }
@@ -244,82 +210,80 @@ public :
         {
             m_h = std::min(m_h, m_tFinal - m_t);
 
-            for (size_t i = 0; i < COMPONENTS; i++) 
+            for (size_t i = 0; i < DIMENSIONS; i++) 
             {
                 m_X[i] = m_yn[i];
             }
 
             m_K1 = m_F(m_t, m_X); //--------------------- 1ST-stage -----------------------
 
-            for (size_t i = 0; i < COMPONENTS; i++) 
+            for (size_t i = 0; i < DIMENSIONS; i++) 
             {
-                m_X[i] = m_yn[i] + m_h * (Dopri5::a21*m_K1[i]); 
+                m_X[i] = m_yn[i] + m_h * (Dopri54::a21*m_K1[i]); 
             }
 
-            m_K2 = m_F(m_t + Dopri5::c2*m_h, m_X); //--------------------- 2ND-stage -----------------------
+            m_K2 = m_F(m_t + Dopri54::c2*m_h, m_X); //--------------------- 2ND-stage -----------------------
 
-            for (size_t i = 0; i < COMPONENTS; i++) 
+            for (size_t i = 0; i < DIMENSIONS; i++) 
             {
-                m_X[i] = m_yn[i] + m_h * (Dopri5::a31*m_K1[i] + Dopri5::a32*m_K2[i]);
+                m_X[i] = m_yn[i] + m_h * (Dopri54::a31*m_K1[i] + Dopri54::a32*m_K2[i]);
             }
 
-            m_K3 = m_F(m_t + Dopri5::c3*m_h, m_X); //--------------------- 3RD-stage -----------------------
+            m_K3 = m_F(m_t + Dopri54::c3*m_h, m_X); //--------------------- 3RD-stage -----------------------
 
-            for (size_t i = 0; i < COMPONENTS; i++) 
+            for (size_t i = 0; i < DIMENSIONS; i++) 
             {
-                m_X[i] = m_yn[i] + m_h * (Dopri5::a41*m_K1[i] + Dopri5::a42*m_K2[i] + 
-                                          Dopri5::a43*m_K3[i]);
+                m_X[i] = m_yn[i] + m_h * (Dopri54::a41*m_K1[i] + Dopri54::a42*m_K2[i] + 
+                                          Dopri54::a43*m_K3[i]);
             }
 
-            m_K4 = m_F(m_t + Dopri5::c4*m_h, m_X); //--------------------- 4TH-stage -----------------------
+            m_K4 = m_F(m_t + Dopri54::c4*m_h, m_X); //--------------------- 4TH-stage -----------------------
 
-            for (size_t i = 0; i < COMPONENTS; i++) 
+            for (size_t i = 0; i < DIMENSIONS; i++) 
             {
-                m_X[i] = m_yn[i] + m_h * (Dopri5::a51*m_K1[i] + Dopri5::a52*m_K2[i] + 
-                                          Dopri5::a53*m_K3[i] + Dopri5::a54*m_K4[i]);
+                m_X[i] = m_yn[i] + m_h * (Dopri54::a51*m_K1[i] + Dopri54::a52*m_K2[i] + 
+                                          Dopri54::a53*m_K3[i] + Dopri54::a54*m_K4[i]);
             }
 
-            m_K5 = m_F(m_t + Dopri5::c5*m_h, m_X); //--------------------- 5TH-stage -----------------------
+            m_K5 = m_F(m_t + Dopri54::c5*m_h, m_X); //--------------------- 5TH-stage -----------------------
 
-            for (size_t i = 0; i < COMPONENTS; i++) 
+            for (size_t i = 0; i < DIMENSIONS; i++) 
             {
-                m_X[i] = m_yn[i] + m_h * (Dopri5::a61*m_K1[i] + Dopri5::a62*m_K2[i] + 
-                                          Dopri5::a63*m_K3[i] + Dopri5::a64*m_K4[i] + Dopri5::a65*m_K5[i]);
+                m_X[i] = m_yn[i] + m_h * (Dopri54::a61*m_K1[i] + Dopri54::a62*m_K2[i] + 
+                                          Dopri54::a63*m_K3[i] + Dopri54::a64*m_K4[i] + Dopri54::a65*m_K5[i]);
             }
 
             m_K6 = m_F(m_t + m_h, m_X); //--------------------- 6TH-stage -----------------------
 
-            for (size_t i = 0; i < COMPONENTS; i++) 
+            for (size_t i = 0; i < DIMENSIONS; i++) 
             {
-                m_X[i] = m_yn[i] + m_h * (Dopri5::a71*m_K1[i] + Dopri5::a72*m_K3[i] + 
-                                          Dopri5::a73*m_K4[i] + Dopri5::a74*m_K5[i] + Dopri5::a75*m_K6[i]);
+                m_X[i] = m_yn[i] + m_h * (Dopri54::a71*m_K1[i] + Dopri54::a72*m_K3[i] + 
+                                          Dopri54::a73*m_K4[i] + Dopri54::a74*m_K5[i] + Dopri54::a75*m_K6[i]);
             }
 
             m_K7 = m_F(m_t + m_h, m_X); //--------------------- 7TH-stage -----------------------
 
             // Calculate the 5th-order and 4th-order accurate solution.
-            for (size_t i = 0; i < COMPONENTS; i++)
+            for (size_t i = 0; i < DIMENSIONS; i++)
             {
-                m_yn1[i] = m_yn[i] + m_h * (Dopri5::b1*m_K1[i] + Dopri5::b3*m_K3[i] + 
-                                            Dopri5::b4*m_K4[i] + Dopri5::b5*m_K5[i] + Dopri5::b6*m_K6[i]);     // 5th-Order accurate solution. Used to advance the solution.
-                m_yn2[i] = m_yn[i] + m_h * (Dopri5::e1*m_K1[i] + Dopri5::e3*m_K3[i] + 
-                                            Dopri5::e4*m_K4[i] + Dopri5::e5*m_K5[i] + Dopri5::e6*m_K6[i] + Dopri5::e7*m_K7[i]);   // 4th-Order accurate solution. Used for comparison to estimate error.
+                m_yn1[i] = m_yn[i] + m_h * (Dopri54::b1*m_K1[i] + Dopri54::b3*m_K3[i] + 
+                                            Dopri54::b4*m_K4[i] + Dopri54::b5*m_K5[i] + Dopri54::b6*m_K6[i]);     // 5th-Order accurate solution. Used to advance the solution.
+                m_yn2[i] = m_yn[i] + m_h * (Dopri54::e1*m_K1[i] + Dopri54::e3*m_K3[i] + 
+                                            Dopri54::e4*m_K4[i] + Dopri54::e5*m_K5[i] + Dopri54::e6*m_K6[i] + Dopri54::e7*m_K7[i]);   // 4th-Order accurate solution. Used for comparison to estimate error.
             }
 
             // Calculate local errors
-            for (size_t i = 0; i < COMPONENTS; i++) 
+            for (size_t i = 0; i < DIMENSIONS; i++) 
             {
-                m_localErrs[i] = m_h * ((Dopri5::b1 - Dopri5::e1)*m_K1[i] + 
-                                        (Dopri5::b3 - Dopri5::e3)*m_K3[i] +
-                                        (Dopri5::b4 - Dopri5::e4)*m_K4[i] +
-                                        (Dopri5::b5 - Dopri5::e5)*m_K5[i] +
-                                        (Dopri5::b6 - Dopri5::e6)*m_K6[i] - Dopri5::e7*m_K7[i]);
+                m_truncationErrors[i] = m_h * ((Dopri54::b1 - Dopri54::e1)*m_K1[i] + (Dopri54::b3 - Dopri54::e3)*m_K3[i] + 
+                                               (Dopri54::b4 - Dopri54::e4)*m_K4[i] + (Dopri54::b5 - Dopri54::e5)*m_K5[i] + 
+                                               (Dopri54::b6 - Dopri54::e6)*m_K6[i] - Dopri54::e7*m_K7[i]);
             }
 
-            for (size_t i = 0; i < COMPONENTS; i++)
+            for (size_t i = 0; i < DIMENSIONS; i++)
             {
                 // absTol and relTol are the desired tolerances prescribed by the user. 
-                m_sci[i] = m_absTol + std::max(fabs(m_yn[i]), fabs(m_yn1[i])) * m_relTol;
+                m_sci[i] = m_absTol + std::max(std::fabs(m_yn[i]), std::fabs(m_yn1[i])) * m_relTol;
             }
 
             // local error is controlled by error-per-unit-steps (EPUS) or error-per-steps (EPS)
@@ -338,16 +302,16 @@ public :
             m_rh1 = rho;
 
             // Apply a limiter
-            double ratio = 1.0 + m_kappa * atan((rho - 1.0) / m_kappa);
+            double ratio = 1.0 + m_kappa * std::atan((rho - 1.0) / m_kappa);
 
             if (ratio < m_acceptSF) { // Reject steps and recalculate with the new stepsize
-                m_h = ratio * m_h;
+                m_h *= ratio;
                 m_rejectedSteps++;
                 continue;
             } 
             else {  // Accept steps and the solution is advanced with yn1 and tried with the new stepsize.
 
-                if (m_denseOut) 
+                if (m_denseOut) // do 1-more extra steps at the middle between yn and yn1.
                 {
                     /*
                      * theta ∈ [0, 1], theta = 0 => yn, theta = 1 => yn1
@@ -355,23 +319,43 @@ public :
                      * un+1(t + theta*h) = yn + h * sum(bi(theta)*Ki), i = 1...s, theta ∈ (0, 1)
                      */
                     double theta = 0.5; 
-                    std::array<double, COMPONENTS> extraSteps = Interpolate(theta, m_h);
+                    std::array<double, DIMENSIONS> extraSteps = Interpolate(theta, m_h);
                     m_tOut.push_back(m_t + theta*m_h);
                     m_yOut.push_back(extraSteps);
                 }
 
-                m_t = m_t + m_h;
-                m_h = ratio * m_h;
+                m_t += m_h;
+                m_h *= ratio;
                 m_acceptedSteps++;
 
                 m_tOut.push_back(m_t);
                 m_yOut.push_back(m_yn1);
 
-                for (size_t i = 0; i < COMPONENTS; i++)
+                for (size_t i = 0; i < DIMENSIONS; i++)
                 {
                     m_yn[i] = m_yn1[i];
                 }
             }
+        }
+    }
+
+    void DisplaySteps() {
+        std::cout << "Steps: accepted = " << m_acceptedSteps << " rejected = " << m_rejectedSteps << std::endl;
+    }
+
+    void DisplayResults() {
+        std::cout << std::setprecision(15) << std::fixed;
+
+        for (size_t i = 0; i < m_yOut.size(); i++)
+        {
+            /* code */
+            std::cout << "step " << i << " at t = " << m_tOut[i] << '\n';
+            std::cout << "-> ";
+            for (int j = 0; j < DIMENSIONS; j++)
+            {
+                std::cout << m_yOut[i][j] << ' ';
+            }
+            std::cout << '\n';
         }
     }
 };
@@ -380,22 +364,27 @@ public :
 // y' = y - t^2 + 1
 // y(0) = 0.5
 // exact solution: t**2 + 2t + 1 - 0.5e**t
-std::array<double, COMPONENTS> F(double t, std::array<double, COMPONENTS> &X) {    // F(t, y)
-    double dotx = X[0] - t*t + 1.0;
-    return std::array<double, COMPONENTS> {dotx};
+
+// F(t, y)
+std::array<double, DIMENSIONS> F(double t, std::array<double, DIMENSIONS> &X) 
+{
+    double xDot = X[0] - t*t + 1.0;
+
+    return std::array<double, DIMENSIONS> { xDot };
 }
 
 int main(void) {
 
-    std::array<double, COMPONENTS> y0 = {0.5};
+    std::array<double, DIMENSIONS> y0 = {0.5};
     double t0 = 0.0;
     double tFinal = 2.0;
     double stepSize = 0.2;
 
-    Controller::Controllers controller = Controller::STANDARD;      // Choose a controller
-    Solver solver(controller, F, y0, stepSize, t0, tFinal);
+    StepSizeController::Controllers controller = StepSizeController::STANDARD;      // Choose a controller
+    Solver solver(controller, F, y0, stepSize, t0, tFinal, 1e-6, 1e-6);
     solver.Solve();
+    solver.DisplayResults();
     solver.DisplaySteps();
-    solver.DisplayStatus();
+    
     return EXIT_SUCCESS;
 }
