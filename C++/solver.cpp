@@ -81,7 +81,7 @@ private :
     const double m_kappa    = 1.5;        // kappa ∈ [0.7, 2] as suggested in the literature
     const double m_acceptSF = 0.81;       // accept safety factor
 
-    std::function<std::array<double, DIMENSIONS>(double, std::array<double, DIMENSIONS>&)> m_F{};   // f(t, y)
+    std::function<void(double, std::array<double, DIMENSIONS>&, std::array<double, DIMENSIONS>&)> m_F{};   // f(t, y)
 
     std::array<double, DIMENSIONS> m_yn{}, m_X{}, m_K1{}, m_K2{}, m_K3{}, m_K4{}, m_K5{}, m_K6{}, m_K7{}, m_yn1{}, m_yn2{}, m_truncationErrors{}, m_sci{};
 
@@ -170,7 +170,7 @@ public :
     std::vector<double> m_tOut{};                            // accumulate time steps
 
     // Solver(controllerType, f(t, y), y0, h, t0, tFinal, absTolerance=1E-6, relTolerance=1E-4, denseOut=false)
-    Solver(StepSizeController::Controllers controller, std::function<std::array<double, DIMENSIONS>(double, std::array<double, DIMENSIONS>&)> fName, 
+    Solver(StepSizeController::Controllers controller, std::function<void(double, std::array<double, DIMENSIONS>&, std::array<double, DIMENSIONS>&)> fName, 
            std::array<double, DIMENSIONS> &y0, double stepSize, double t0, double tFinal, double absTol=1e-6, double relTol=1e-4, bool denseOut=false) 
            : m_F {fName}, m_yn {y0}, m_h {stepSize}, m_t {t0}, m_tFinal {tFinal}, m_absTol {absTol}, m_relTol {relTol}, m_denseOut {denseOut}
     {
@@ -215,21 +215,21 @@ public :
                 m_X[i] = m_yn[i];
             }
 
-            m_K1 = m_F(m_t, m_X); //--------------------- 1ST-stage -----------------------
+            m_F(m_t, m_X, m_K1); //--------------------- 1ST-stage -----------------------
 
             for (size_t i = 0; i < DIMENSIONS; i++) 
             {
                 m_X[i] = m_yn[i] + m_h * (Dopri54::a21*m_K1[i]); 
             }
 
-            m_K2 = m_F(m_t + Dopri54::c2*m_h, m_X); //--------------------- 2ND-stage -----------------------
+            m_F(m_t + Dopri54::c2*m_h, m_X, m_K2); //--------------------- 2ND-stage -----------------------
 
             for (size_t i = 0; i < DIMENSIONS; i++) 
             {
                 m_X[i] = m_yn[i] + m_h * (Dopri54::a31*m_K1[i] + Dopri54::a32*m_K2[i]);
             }
 
-            m_K3 = m_F(m_t + Dopri54::c3*m_h, m_X); //--------------------- 3RD-stage -----------------------
+            m_F(m_t + Dopri54::c3*m_h, m_X, m_K3); //--------------------- 3RD-stage -----------------------
 
             for (size_t i = 0; i < DIMENSIONS; i++) 
             {
@@ -237,7 +237,7 @@ public :
                                           Dopri54::a43*m_K3[i]);
             }
 
-            m_K4 = m_F(m_t + Dopri54::c4*m_h, m_X); //--------------------- 4TH-stage -----------------------
+            m_F(m_t + Dopri54::c4*m_h, m_X, m_K4); //--------------------- 4TH-stage -----------------------
 
             for (size_t i = 0; i < DIMENSIONS; i++) 
             {
@@ -245,7 +245,7 @@ public :
                                           Dopri54::a53*m_K3[i] + Dopri54::a54*m_K4[i]);
             }
 
-            m_K5 = m_F(m_t + Dopri54::c5*m_h, m_X); //--------------------- 5TH-stage -----------------------
+            m_F(m_t + Dopri54::c5*m_h, m_X, m_K5); //--------------------- 5TH-stage -----------------------
 
             for (size_t i = 0; i < DIMENSIONS; i++) 
             {
@@ -253,7 +253,7 @@ public :
                                           Dopri54::a63*m_K3[i] + Dopri54::a64*m_K4[i] + Dopri54::a65*m_K5[i]);
             }
 
-            m_K6 = m_F(m_t + m_h, m_X); //--------------------- 6TH-stage -----------------------
+            m_F(m_t + m_h, m_X, m_K6); //--------------------- 6TH-stage -----------------------
 
             for (size_t i = 0; i < DIMENSIONS; i++) 
             {
@@ -261,7 +261,7 @@ public :
                                           Dopri54::a73*m_K4[i] + Dopri54::a74*m_K5[i] + Dopri54::a75*m_K6[i]);
             }
 
-            m_K7 = m_F(m_t + m_h, m_X); //--------------------- 7TH-stage -----------------------
+            m_F(m_t + m_h, m_X, m_K7); //--------------------- 7TH-stage -----------------------
 
             // Calculate the 5th-order and 4th-order accurate solution.
             for (size_t i = 0; i < DIMENSIONS; i++)
@@ -366,12 +366,12 @@ public :
 // exact solution: t**2 + 2t + 1 - 0.5e**t
 
 // F(t, y)
-std::array<double, DIMENSIONS> F(double t, std::array<double, DIMENSIONS> &X) 
+void F(double t, std::array<double, DIMENSIONS> &X, std::array<double, DIMENSIONS> &Ks) 
 {
     double xDot = X[0] - t*t + 1.0;
-
-    return std::array<double, DIMENSIONS> { xDot };
+    Ks[0] = xDot;
 }
+
 
 int main(void) {
 
