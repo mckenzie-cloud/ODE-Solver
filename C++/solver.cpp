@@ -48,9 +48,11 @@ namespace StepSizeController
     {
         STANDARD,
         H211PI,
-        H312PID,
         H211B,
         H312B,
+        H312PID,
+        H0321,
+        H321,
         PI42,
 
         /*
@@ -58,16 +60,17 @@ namespace StepSizeController
         *  Reference: Digital Filters in Adaptive Time-Stepping (Sorderlind, 2003)
         *  https://dl.acm.org/doi/10.1145/641876.641877 -> Table III. page 24
         */
-
         /*--------------------------------------------------------------------------
-         * kbeta1 | kbeta2 | kbeta3 | alpha2 | alpha3 | Class    | Problem Type
-         *-------------------------------------------------------------------------
-         * 1/b    | 1/b    | 0      | 1/b    | 0      | H211b    | medium to nonsmooth
-         * 1/6    | 1/6    | 0      | 0      | 0      | H211 PI  | medium to nonsmooth
-         * 1/b    | 2/b    | 1/b    | 3/b    | 1/b    | H312b    | nonsmooth
-         * 1/18   | 1/9    | 1/18   | 0      | 0      | H312 PID | nonsmooth
-         *-------------------------------------------------------------------------
-         */
+        * kbeta1 | kbeta2 | kbeta3 | alpha2 | alpha3 | Class    | Problem Type
+        *-------------------------------------------------------------------------
+        * 1/b    | 1/b    | 0      | 1/b    | 0      | H211b    | medium to nonsmooth
+        * 1/6    | 1/6    | 0      | 0      | 0      | H211 PI  | medium to nonsmooth
+        * 1/b    | 2/b    | 1/b    | 3/b    | 1/b    | H312b    | nonsmooth
+        * 1/18   | 1/9    | 1/18   | 0      | 0      | H312 PID | nonsmooth
+        * 5/4    | 1/2    |-3/4    |-1/4    |-3/4    | H0321    | smooth
+        * 1/3    | 1/18   |-5/18   |-5/6    |-1/6    | H321     | medium
+        *-------------------------------------------------------------------------
+        */
     };
 }
 
@@ -286,6 +289,12 @@ public:
         case StepSizeController::H312B: // b = 8.0
             SetControllerParameters(1.0 / 8.0, 1.0 / 8.0, 1.0 / 8.0, 3.0 / 8.0, 1.0 / 8.0);
             break;
+        case StepSizeController::H0321:
+            SetControllerParameters(5.0 / 4.0, 1.0 / 2.0, -3.0 / 4.0, -1.0 / 4.0, -3.0 / 4.0);
+            break;
+        case StepSizeController::H321:
+            SetControllerParameters(1.0 / 3.0, 1.0 / 18.0, -5.0 / 18.0, -5.0 / 6.0, -1.0 / 6.0);
+            break;
         case StepSizeController::PI42:
             SetControllerParameters(3.0 / 5.0, -1.0 / 5.0, 0.0, 0.0, 0.0);
             break;
@@ -403,7 +412,7 @@ int main(void)
     double tFinal = 10.0;
     double stepSize = 0.2;
 
-    StepSizeController::Controllers controller = StepSizeController::H211PI; // Choose a controller
+    StepSizeController::Controllers controller = StepSizeController::STANDARD; // Choose a controller
     Solver solver(controller, F, y0, stepSize, t0, tFinal, 1e-6, 1e-6);
     solver.Solve();
     solver.DisplayResults();
