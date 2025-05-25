@@ -84,7 +84,7 @@ private:
 
     std::function<void(double, std::array<double, DIMENSIONS> &, std::array<double, DIMENSIONS> &)> m_F{}; // f(t, y)
 
-    std::array<double, DIMENSIONS> m_yn{}, m_X{}, m_K1{}, m_K2{}, m_K3{}, m_K4{}, m_K5{}, m_K6{}, m_K7{}, m_ynew{}, m_yn2{}, m_truncationErrors{}, m_sci{};
+    std::array<double, DIMENSIONS> m_yn{}, m_X{}, m_K1{}, m_K2{}, m_K3{}, m_K4{}, m_K5{}, m_K6{}, m_K7{}, m_ynew{}, m_truncationErrors{}, m_sci{};
 
     double m_h{}, m_t{}, m_tFinal{}, m_absTol{}, m_relTol{};
 
