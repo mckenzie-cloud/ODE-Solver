@@ -36,7 +36,6 @@ namespace Dopri54
     constexpr double a41 = 44.0 / 45.0, a42 = -56.0 / 15.0, a43 = 32.0 / 9.0;
     constexpr double a51 = 19372.0 / 6561.0, a52 = -25360.0 / 2187.0, a53 = 64448.0 / 6561.0, a54 = -212.0 / 729.0;
     constexpr double a61 = 9017.0 / 3168.0, a62 = -355.0 / 33.0, a63 = 46732.0 / 5247.0, a64 = 49.0 / 176.0, a65 = -5103.0 / 18656.0;
-    constexpr double a71 = 35.0 / 384.0, a72 = 500.0 / 1113.0, a73 = 125.0 / 192.0, a74 = -2187.0 / 6784.0, a75 = 11.0 / 84.0;
 
     constexpr double b1 = 35.0 / 384.0, b3 = 500.0 / 1113.0, b4 = 125.0 / 192.0, b5 = -2187.0 / 6784.0, b6 = 11.0 / 84.0;
     constexpr double e1 = 5179.0 / 57600.0, e3 = 7571.0 / 16695.0, e4 = 393.0 / 640.0, e5 = -92097.0 / 339200.0, e6 = 187.0 / 2100.0, e7 = 1.0 / 40.0;
@@ -85,7 +84,7 @@ private:
 
     std::function<void(double, std::array<double, DIMENSIONS> &, std::array<double, DIMENSIONS> &)> m_F{}; // f(t, y)
 
-    std::array<double, DIMENSIONS> m_yn{}, m_X{}, m_K1{}, m_K2{}, m_K3{}, m_K4{}, m_K5{}, m_K6{}, m_K7{}, m_yn1{}, m_yn2{}, m_truncationErrors{}, m_sci{};
+    std::array<double, DIMENSIONS> m_yn{}, m_X{}, m_K1{}, m_K2{}, m_K3{}, m_K4{}, m_K5{}, m_K6{}, m_K7{}, m_ynew{}, m_yn2{}, m_truncationErrors{}, m_sci{};
 
     double m_h{}, m_t{}, m_tFinal{}, m_absTol{}, m_relTol{};
 
@@ -170,22 +169,14 @@ private:
 
         m_F(m_t + m_h, m_X, m_K6); //--------------------- 6TH-stage -----------------------
 
-        for (size_t i = 0; i < DIMENSIONS; i++)
-        {
-            m_X[i] = m_yn[i] + m_h * (Dopri54::a71 * m_K1[i] + Dopri54::a72 * m_K3[i] +
-                                      Dopri54::a73 * m_K4[i] + Dopri54::a74 * m_K5[i] + Dopri54::a75 * m_K6[i]);
-        }
-
-        m_F(m_t + m_h, m_X, m_K7); //--------------------- 7TH-stage -----------------------
-
         // Calculate the 5th-order and 4th-order accurate solution.
         for (size_t i = 0; i < DIMENSIONS; i++)
         {
-            m_yn1[i] = m_yn[i] + m_h * (Dopri54::b1 * m_K1[i] + Dopri54::b3 * m_K3[i] +
+            m_ynew[i] = m_yn[i] + m_h * (Dopri54::b1 * m_K1[i] + Dopri54::b3 * m_K3[i] +
                                         Dopri54::b4 * m_K4[i] + Dopri54::b5 * m_K5[i] + Dopri54::b6 * m_K6[i]); // 5th-Order accurate solution. Used to advance the solution.
-            m_yn2[i] = m_yn[i] + m_h * (Dopri54::e1 * m_K1[i] + Dopri54::e3 * m_K3[i] +
-                                        Dopri54::e4 * m_K4[i] + Dopri54::e5 * m_K5[i] + Dopri54::e6 * m_K6[i] + Dopri54::e7 * m_K7[i]); // 4th-Order accurate solution. Used for comparison to estimate error.
         }
+
+        m_F(m_t + m_h, m_ynew, m_K7); //--------------------- 7TH-stage -----------------------  Reuse for error estimation
 
         // Calculate local errors
         for (size_t i = 0; i < DIMENSIONS; i++)
@@ -198,7 +189,7 @@ private:
         for (size_t i = 0; i < DIMENSIONS; i++)
         {
             // absTol and relTol are the desired tolerances prescribed by the user.
-            m_sci[i] = m_absTol + std::max(std::fabs(m_yn[i]), std::fabs(m_yn1[i])) * m_relTol;
+            m_sci[i] = m_absTol + std::max(std::fabs(m_yn[i]), std::fabs(m_ynew[i])) * m_relTol;
         }
 
         // local error is controlled by error-per-unit-steps (EPUS) or error-per-steps (EPS)
@@ -355,11 +346,11 @@ public:
                 m_acceptedSteps++;
 
                 m_tOut.push_back(m_t);
-                m_yOut.push_back(m_yn1);
+                m_yOut.push_back(m_ynew);
 
                 for (size_t i = 0; i < DIMENSIONS; i++)
                 {
-                    m_yn[i] = m_yn1[i];
+                    m_yn[i] = m_ynew[i];
                 }
             }
         }
