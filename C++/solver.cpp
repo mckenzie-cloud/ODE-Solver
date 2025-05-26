@@ -107,18 +107,88 @@ private:
         m_alpha3 = a3;
     }
 
-    double hairer_norm()
+    double hairer_norm(std::array<double, DIMENSIONS> &a, std::array<double, DIMENSIONS> &sci)
     {
         /**
          * ----- Calculate error-norm ||err|| -----
          * using the L2-Norm or the Euclidean Norm.
          * */
-        double sum = 0.0;
+        double sumOfSqrd = 0.0;
         for (size_t i = 0; i < DIMENSIONS; i++)
         {
-            sum = sum + std::pow(m_truncationErrors[i] / m_sci[i], 2.0);
+            sumOfSqrd = sumOfSqrd + std::pow(a[i] / sci[i], 2.0);
         }
-        return std::sqrt(sum / static_cast<double>(DIMENSIONS));
+        return std::sqrt(sumOfSqrd / static_cast<double>(DIMENSIONS));
+    }
+
+    double initialize_stepsize(double t0, std::array<double, DIMENSIONS> &y0)
+    {
+        /*
+         * (a) Do one function evaluation f(t0, y0) at the initial point.
+         * Then put d0 = ||y0|| and d1 = ||f(t0, y0)||, using the hairer's norm
+         * with sci = Atol + |y0_i| * Rtol
+        */
+        std::array<double, DIMENSIONS> f1{};
+        m_F(t0, y0, f1);
+
+        std::array<double, DIMENSIONS> sci{};
+        for (int i = 0; i < DIMENSIONS; i++)
+        {
+            sci[i] = m_absTol + std::fabs(y0[i]) * m_relTol;
+        }
+
+        double d0 = hairer_norm(y0, sci);
+        double d1 = hairer_norm(f1, sci);
+
+        // (b) As a first guess for the step size let
+        double h0 = 0.01 * (d0 / d1);
+
+        // If either d0 or d1 is < 1e-5 we put h0 = 1e-6
+        if (d0 < 1e-5 || d1 < 1e-5)
+        {
+            h0 = 1e-6;
+        }
+
+        // (c) Perform one explicit Euler stpe, y1 = y0 + h0 * f(t0, y0)
+        std::array<double, DIMENSIONS> y1{};
+        for (int i = 0; i < DIMENSIONS; i++)
+        {
+            y1[i] = y0[i] + h0 * f1[i];
+        }
+
+        std::array<double, DIMENSIONS> f2{};
+        m_F(t0 + h0, y1, f2);
+
+        /*
+         * (d) Compute d2 = ||f(t0 + h0, y1) - f(t0, y0)|| / h0 as an
+         * estimate of the second derivative of the solution; 
+         * again by using hairer's norm.
+        */
+        std::array<double, DIMENSIONS> diff_f2f1{};
+        for (int i = 0; i < DIMENSIONS; i++)
+        {
+            diff_f2f1[i] = std::fabs(f2[i] - f1[i]);
+        }
+
+        double d2 = hairer_norm(diff_f2f1, sci) / h0;
+
+        double max_d1d2 = std::max(d1, d2);
+
+        /*
+         * (e) Compute a step size h1 from the relation, h1^(p+1) * max(d1, d2) = 0.01, 
+         * where p - is order of the method. If max(d1, d2) <= 10^-15, 
+         * put h1 = max(10^-6, h0 * 10^-3);
+        */
+        double h1 = std::pow(10.0, (-2.0 - std::log10(max_d1d2)) / m_k);
+        if (max_d1d2 <= 1e-15)
+        {
+            h1 = std::max(1e-6, h0 * 1e-3);
+        }
+
+        // f. Finally we propose as starting step size
+        double h = std::min(100.0 * h0, h1);
+
+        return h;
     }
 
     double process()
@@ -194,7 +264,7 @@ private:
 
         // local error is controlled by error-per-unit-steps (EPUS) or error-per-steps (EPS)
         // double err_estimate_scaled = hairer_norm() / m_h;  // Error-per-unit-steps (EPUS)
-        double err_estimate_scaled = hairer_norm();           // Error-per-steps (EPS)
+        double err_estimate_scaled = hairer_norm(m_truncationErrors, m_sci);           // Error-per-steps (EPS)
 
         return err_estimate_scaled;
     }
@@ -256,12 +326,15 @@ public:
     std::vector<std::array<double, DIMENSIONS>> m_yOut{}; // accumulate solution steps
     std::vector<double> m_tOut{};                         // accumulate time steps
 
-    // Solver(controllerType, f(t, y), y0, h, t0, tFinal, absTolerance=1E-6, relTolerance=1E-4, denseOut=false)
+    // Solver(controllerType, f(t, y), y0, t0, tFinal, absTolerance=1E-6, relTolerance=1E-4, denseOut=false)
     Solver(StepSizeController::Controllers controller, std::function<void(double, std::array<double, DIMENSIONS> &, std::array<double, DIMENSIONS> &)> fName,
-           std::array<double, DIMENSIONS> &y0, double stepSize, double t0, double tFinal, double absTol = 1e-6, double relTol = 1e-4, bool denseOut = false)
-        : m_F{fName}, m_yn{y0}, m_h{stepSize}, m_t{t0}, m_tFinal{tFinal}, m_absTol{absTol}, m_relTol{relTol}, m_denseOut{denseOut}
+           std::array<double, DIMENSIONS> &y0, double t0, double tFinal, double absTol = 1e-6, double relTol = 1e-4, bool denseOut = false)
+        : m_F{fName}, m_yn{y0}, m_t{t0}, m_tFinal{tFinal}, m_absTol{absTol}, m_relTol{relTol}, m_denseOut{denseOut}
     {
 
+        // Initialize stepsize
+        m_h = initialize_stepsize(t0, y0);
+        
         switch (controller)
         {
         // set the parameters
@@ -400,10 +473,9 @@ int main(void)
     std::array<double, DIMENSIONS> y0 = {2.0, 2.0};
     double t0 = 0.0;
     double tFinal = 10.0;
-    double stepSize = 0.2;
 
     StepSizeController::Controllers controller = StepSizeController::STANDARD; // Choose a controller
-    Solver solver(controller, F, y0, stepSize, t0, tFinal, 1e-6, 1e-6);
+    Solver solver(controller, F, y0, t0, tFinal, 1e-8, 1e-8);
     solver.Solve();
     solver.display_results();
     solver.display_steps();
