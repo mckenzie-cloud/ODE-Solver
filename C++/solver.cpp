@@ -98,7 +98,7 @@ private:
     int m_rejectedSteps{};
 
 private:
-    void SetControllerParameters(double b1, double b2, double b3, double a2, double a3)
+    void set_controller_parameters(double b1, double b2, double b3, double a2, double a3)
     {
         m_beta1 = b1 / m_k;
         m_beta2 = b2 / m_k;
@@ -107,7 +107,7 @@ private:
         m_alpha3 = a3;
     }
 
-    double hairerNorm()
+    double hairer_norm()
     {
         /**
          * ----- Calculate error-norm ||err|| -----
@@ -121,7 +121,7 @@ private:
         return std::sqrt(sum / static_cast<double>(DIMENSIONS));
     }
 
-    double Process()
+    double process()
     {
 
         for (size_t i = 0; i < DIMENSIONS; i++)
@@ -193,13 +193,13 @@ private:
         }
 
         // local error is controlled by error-per-unit-steps (EPUS) or error-per-steps (EPS)
-        // double r = L2Norm() / h;  // Error-per-unit-steps (EPUS)
-        double err_estimate_scaled = hairerNorm(); // Error-per-steps (EPS)
+        // double err_estimate_scaled = hairer_norm() / m_h;  // Error-per-unit-steps (EPUS)
+        double err_estimate_scaled = hairer_norm();           // Error-per-steps (EPS)
 
         return err_estimate_scaled;
     }
 
-    double Filter(double cerrPres, double cerrOld1, double cerrOld2, double rho1, double rho2)
+    double filter(double cerrPres, double cerrOld1, double cerrOld2, double rho1, double rho2)
     {
         /**
          * The General controller formula for Order-Dynamics pD <= 3 with Control error filtering.
@@ -214,12 +214,12 @@ private:
         return result;
     }
 
-    void ControlStepSize(double ratio)
+    void control_stepsize(double ratio)
     {
         m_h *= ratio;
     }
 
-    std::array<double, DIMENSIONS> Interpolate(double theta, double hPresent)
+    std::array<double, DIMENSIONS> interpolate(double theta, double hPresent)
     {
 
         const double C1 = 5.0 * (2558722523.0 - 31403016.0 * theta) / 11282082432.0;
@@ -266,28 +266,28 @@ public:
         {
         // set the parameters
         case StepSizeController::STANDARD:
-            SetControllerParameters(1.0, 0.0, 0.0, 0.0, 0.0);
+            set_controller_parameters(1.0, 0.0, 0.0, 0.0, 0.0);
             break;
         case StepSizeController::H211PI:
-            SetControllerParameters(1.0 / 6.0, 1.0 / 6.0, 0.0, 0.0, 0.0);
+            set_controller_parameters(1.0 / 6.0, 1.0 / 6.0, 0.0, 0.0, 0.0);
             break;
         case StepSizeController::H312PID:
-            SetControllerParameters(1.0 / 18.0, 1.0 / 9.0, 1.0 / 18.0, 0.0, 0.0);
+            set_controller_parameters(1.0 / 18.0, 1.0 / 9.0, 1.0 / 18.0, 0.0, 0.0);
             break;
         case StepSizeController::H211B: // b = 4.0
-            SetControllerParameters(1.0 / 4.0, 1.0 / 4.0, 0.0, 1.0 / 4.0, 0.0);
+            set_controller_parameters(1.0 / 4.0, 1.0 / 4.0, 0.0, 1.0 / 4.0, 0.0);
             break;
         case StepSizeController::H312B: // b = 8.0
-            SetControllerParameters(1.0 / 8.0, 1.0 / 8.0, 1.0 / 8.0, 3.0 / 8.0, 1.0 / 8.0);
+            set_controller_parameters(1.0 / 8.0, 1.0 / 8.0, 1.0 / 8.0, 3.0 / 8.0, 1.0 / 8.0);
             break;
         case StepSizeController::H0321:
-            SetControllerParameters(5.0 / 4.0, 1.0 / 2.0, -3.0 / 4.0, -1.0 / 4.0, -3.0 / 4.0);
+            set_controller_parameters(5.0 / 4.0, 1.0 / 2.0, -3.0 / 4.0, -1.0 / 4.0, -3.0 / 4.0);
             break;
         case StepSizeController::H321:
-            SetControllerParameters(1.0 / 3.0, 1.0 / 18.0, -5.0 / 18.0, -5.0 / 6.0, -1.0 / 6.0);
+            set_controller_parameters(1.0 / 3.0, 1.0 / 18.0, -5.0 / 18.0, -5.0 / 6.0, -1.0 / 6.0);
             break;
         case StepSizeController::PI42:
-            SetControllerParameters(3.0 / 5.0, -1.0 / 5.0, 0.0, 0.0, 0.0);
+            set_controller_parameters(3.0 / 5.0, -1.0 / 5.0, 0.0, 0.0, 0.0);
             break;
         }
     }
@@ -303,11 +303,11 @@ public:
         {
             m_h = std::min(m_h, m_tFinal - m_t);
 
-            double err_estimate_scaled = Process();
+            double err_estimate_scaled = process();
 
             double cerr = 1.0 / err_estimate_scaled; // inverse of the error estimates scaled
 
-            double rho = Filter(cerr, m_cerr1, m_cerr2, m_rh1, m_rh2);
+            double rho = filter(cerr, m_cerr1, m_cerr2, m_rh1, m_rh2);
 
             // Save previous values for the next step.
             m_cerr2 = m_cerr1;
@@ -321,7 +321,7 @@ public:
 
             if (ratio < m_acceptSF)
             { // Reject steps and recalculate with the new stepsize
-                ControlStepSize(ratio);
+                control_stepsize(ratio);
                 m_rejectedSteps++;
                 continue;
             }
@@ -336,13 +336,13 @@ public:
                      * un+1(t + theta*h) = yn + h * sum(bi(theta)*Ki), i = 1...s, theta ∈ (0, 1)
                      */
                     double theta = 0.5;
-                    std::array<double, DIMENSIONS> extraSteps = Interpolate(theta, m_h);
+                    std::array<double, DIMENSIONS> extraSteps = interpolate(theta, m_h);
                     m_tOut.push_back(m_t + theta * m_h);
                     m_yOut.push_back(extraSteps);
                 }
 
                 m_t += m_h;
-                ControlStepSize(ratio);
+                control_stepsize(ratio);
                 m_acceptedSteps++;
 
                 m_tOut.push_back(m_t);
@@ -356,14 +356,13 @@ public:
         }
     }
 
-    void DisplaySteps()
+    void display_steps()
     {
         std::cout << "\n\tSteps: accepted = " << m_acceptedSteps << " rejected = " << m_rejectedSteps << std::endl;
     }
 
-    void DisplayResults()
+    void display_results()
     {
-
         std::cout << std::endl;
 
         std::cout << std::setprecision(15) << std::fixed;
@@ -406,8 +405,8 @@ int main(void)
     StepSizeController::Controllers controller = StepSizeController::STANDARD; // Choose a controller
     Solver solver(controller, F, y0, stepSize, t0, tFinal, 1e-6, 1e-6);
     solver.Solve();
-    solver.DisplayResults();
-    solver.DisplaySteps();
+    solver.display_results();
+    solver.display_steps();
 
     return EXIT_SUCCESS;
 }
