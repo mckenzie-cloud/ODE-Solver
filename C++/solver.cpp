@@ -27,18 +27,18 @@ namespace Dopri54
 {
     // We will be using the Dormand-Prince 5(4) order method.
     // The Butcher Tableau is :
-    constexpr double c2 = 1.0 / 5.0;
-    constexpr double c3 = 3.0 / 10.0;
-    constexpr double c4 = 4.0 / 5.0;
-    constexpr double c5 = 8.0 / 9.0;
-    constexpr double a21 = 1.0 / 5.0;
-    constexpr double a31 = 3.0 / 40.0, a32 = 9.0 / 40.0;
-    constexpr double a41 = 44.0 / 45.0, a42 = -56.0 / 15.0, a43 = 32.0 / 9.0;
-    constexpr double a51 = 19372.0 / 6561.0, a52 = -25360.0 / 2187.0, a53 = 64448.0 / 6561.0, a54 = -212.0 / 729.0;
-    constexpr double a61 = 9017.0 / 3168.0, a62 = -355.0 / 33.0, a63 = 46732.0 / 5247.0, a64 = 49.0 / 176.0, a65 = -5103.0 / 18656.0;
+    constexpr long double c2 = 1.0 / 5.0;
+    constexpr long double c3 = 3.0 / 10.0;
+    constexpr long double c4 = 4.0 / 5.0;
+    constexpr long double c5 = 8.0 / 9.0;
+    constexpr long double a21 = 1.0 / 5.0;
+    constexpr long double a31 = 3.0 / 40.0, a32 = 9.0 / 40.0;
+    constexpr long double a41 = 44.0 / 45.0, a42 = -56.0 / 15.0, a43 = 32.0 / 9.0;
+    constexpr long double a51 = 19372.0 / 6561.0, a52 = -25360.0 / 2187.0, a53 = 64448.0 / 6561.0, a54 = -212.0 / 729.0;
+    constexpr long double a61 = 9017.0 / 3168.0, a62 = -355.0 / 33.0, a63 = 46732.0 / 5247.0, a64 = 49.0 / 176.0, a65 = -5103.0 / 18656.0;
 
-    constexpr double b1 = 35.0 / 384.0, b3 = 500.0 / 1113.0, b4 = 125.0 / 192.0, b5 = -2187.0 / 6784.0, b6 = 11.0 / 84.0;
-    constexpr double e1 = 5179.0 / 57600.0, e3 = 7571.0 / 16695.0, e4 = 393.0 / 640.0, e5 = -92097.0 / 339200.0, e6 = 187.0 / 2100.0, e7 = 1.0 / 40.0;
+    constexpr long double b1 = 35.0 / 384.0, b3 = 500.0 / 1113.0, b4 = 125.0 / 192.0, b5 = -2187.0 / 6784.0, b6 = 11.0 / 84.0;
+    constexpr long double e1 = 5179.0 / 57600.0, e3 = 7571.0 / 16695.0, e4 = 393.0 / 640.0, e5 = -92097.0 / 339200.0, e6 = 187.0 / 2100.0, e7 = 1.0 / 40.0;
 }
 
 namespace StepSizeController
@@ -77,28 +77,28 @@ class Solver
 {
 
 private:
-    const double m_p = 4.0;         // the order corresponding to the RK method
-    const double m_k = m_p + 1.0;   // EPS => k = p + 1 and EPUS => k = p
-    const double m_kappa = 1.5;     // kappa ∈ [0.7, 2] as suggested in the literature
-    const double m_acceptSF = 0.81; // accept safety factor
+    const long double m_p = 4.0;         // the order corresponding to the RK method
+    const long double m_k = m_p + 1.0;   // EPS => k = p + 1 and EPUS => k = p
+    const long double m_kappa = 1.5;     // kappa ∈ [0.7, 2] as suggested in the literature
+    const long double m_acceptSF = 0.81; // accept safety factor
 
-    std::function<void(double, std::array<double, DIMENSIONS> &, std::array<double, DIMENSIONS> &)> m_F{}; // f(t, y)
+    std::function<void(long double, std::array<long double, DIMENSIONS> &, std::array<long double, DIMENSIONS> &)> m_F{}; // f(t, y)
 
-    std::array<double, DIMENSIONS> m_yn{}, m_X{}, m_K1{}, m_K2{}, m_K3{}, m_K4{}, m_K5{}, m_K6{}, m_K7{}, m_ynew{}, m_truncationErrors{}, m_sci{};
+    std::array<long double, DIMENSIONS> m_yn{}, m_X{}, m_K1{}, m_K2{}, m_K3{}, m_K4{}, m_K5{}, m_K6{}, m_K7{}, m_ynew{}, m_truncationErrors{}, m_sci{};
 
-    double m_h{}, m_t{}, m_tFinal{}, m_absTol{}, m_relTol{};
+    long double m_h{}, m_t{}, m_tFinal{}, m_absTol{}, m_relTol{};
 
-    double m_beta1, m_beta2, m_beta3, m_alpha2, m_alpha3;
+    long double m_beta1, m_beta2, m_beta3, m_alpha2, m_alpha3;
 
     bool m_denseOut;
 
-    double m_cerr1 = 1.0, m_cerr2 = 1.0, m_rh1 = 1.0, m_rh2 = 1.0;
+    long double m_cerr1 = 1.0, m_cerr2 = 1.0, m_rh1 = 1.0, m_rh2 = 1.0;
 
     int m_acceptedSteps{};
     int m_rejectedSteps{};
 
 private:
-    void set_controller_parameters(double b1, double b2, double b3, double a2, double a3)
+    void set_controller_parameters(long double b1, long double b2, long double b3, long double a2, long double a3)
     {
         m_beta1 = b1 / m_k;
         m_beta2 = b2 / m_k;
@@ -107,41 +107,41 @@ private:
         m_alpha3 = a3;
     }
 
-    double hairer_norm(std::array<double, DIMENSIONS> &a, std::array<double, DIMENSIONS> &sci)
+    long double hairer_norm(std::array<long double, DIMENSIONS> &a, std::array<long double, DIMENSIONS> &sci)
     {
         /**
          * ----- Calculate error-norm ||err|| -----
          * using the L2-Norm or the Euclidean Norm.
          * */
-        double sumOfSqrd = 0.0;
+        long double sumOfSqrd = 0.0;
         for (size_t i = 0; i < DIMENSIONS; i++)
         {
             sumOfSqrd = sumOfSqrd + std::pow(a[i] / sci[i], 2.0);
         }
-        return std::sqrt(sumOfSqrd / static_cast<double>(DIMENSIONS));
+        return std::sqrt(sumOfSqrd / static_cast<long double>(DIMENSIONS));
     }
 
-    double initialize_stepsize(double t0, std::array<double, DIMENSIONS> &y0)
+    long double initialize_stepsize(long double t0, std::array<long double, DIMENSIONS> &y0)
     {
         /*
          * (a) Do one function evaluation f(t0, y0) at the initial point.
          * Then put d0 = ||y0|| and d1 = ||f(t0, y0)||, using the hairer's norm
          * with sci = Atol + |y0_i| * Rtol
         */
-        std::array<double, DIMENSIONS> f1{};
+        std::array<long double, DIMENSIONS> f1{};
         m_F(t0, y0, f1);
 
-        std::array<double, DIMENSIONS> sci{};
+        std::array<long double, DIMENSIONS> sci{};
         for (int i = 0; i < DIMENSIONS; i++)
         {
             sci[i] = m_absTol + std::fabs(y0[i]) * m_relTol;
         }
 
-        double d0 = hairer_norm(y0, sci);
-        double d1 = hairer_norm(f1, sci);
+        long double d0 = hairer_norm(y0, sci);
+        long double d1 = hairer_norm(f1, sci);
 
         // (b) As a first guess for the step size let
-        double h0 = 0.01 * (d0 / d1);
+        long double h0 = 0.01 * (d0 / d1);
 
         // If either d0 or d1 is < 1e-5 we put h0 = 1e-6
         if (d0 < 1e-5 || d1 < 1e-5)
@@ -150,13 +150,13 @@ private:
         }
 
         // (c) Perform one explicit Euler stpe, y1 = y0 + h0 * f(t0, y0)
-        std::array<double, DIMENSIONS> y1{};
+        std::array<long double, DIMENSIONS> y1{};
         for (int i = 0; i < DIMENSIONS; i++)
         {
             y1[i] = y0[i] + h0 * f1[i];
         }
 
-        std::array<double, DIMENSIONS> f2{};
+        std::array<long double, DIMENSIONS> f2{};
         m_F(t0 + h0, y1, f2);
 
         /*
@@ -164,34 +164,34 @@ private:
          * estimate of the second derivative of the solution; 
          * again by using hairer's norm.
         */
-        std::array<double, DIMENSIONS> diff_f2f1{};
+        std::array<long double, DIMENSIONS> diff_f2f1{};
         for (int i = 0; i < DIMENSIONS; i++)
         {
             diff_f2f1[i] = std::fabs(f2[i] - f1[i]);
         }
 
-        double d2 = hairer_norm(diff_f2f1, sci) / h0;
+        long double d2 = hairer_norm(diff_f2f1, sci) / h0;
 
-        double max_d1d2 = std::max(d1, d2);
+        long double max_d1d2 = std::max(d1, d2);
 
         /*
          * (e) Compute a step size h1 from the relation, h1^(p+1) * max(d1, d2) = 0.01, 
          * where p - is order of the method. If max(d1, d2) <= 10^-15, 
          * put h1 = max(10^-6, h0 * 10^-3);
         */
-        double h1 = std::pow(10.0, (-2.0 - std::log10(max_d1d2)) / m_k);
+        long double h1 = std::pow(10.0, (-2.0 - std::log10(max_d1d2)) / m_k);
         if (max_d1d2 <= 1e-15)
         {
-            h1 = std::max(1e-6, h0 * 1e-3);
+            h1 = std::max(static_cast<long double> (1e-6), h0 * 1e-3);
         }
 
         // f. Finally we propose as starting step size
-        double h = std::min(100.0 * h0, h1);
+        long double h = std::min(100.0 * h0, h1);
 
         return h;
     }
 
-    double process()
+    long double process()
     {
 
         for (size_t i = 0; i < DIMENSIONS; i++)
@@ -263,20 +263,20 @@ private:
         }
 
         // local error is controlled by error-per-unit-steps (EPUS) or error-per-steps (EPS)
-        // double err_estimate_scaled = hairer_norm() / m_h;  // Error-per-unit-steps (EPUS)
-        double err_estimate_scaled = hairer_norm(m_truncationErrors, m_sci);           // Error-per-steps (EPS)
+        // long double err_estimate_scaled = hairer_norm() / m_h;  // Error-per-unit-steps (EPUS)
+        long double err_estimate_scaled = hairer_norm(m_truncationErrors, m_sci);           // Error-per-steps (EPS)
 
         return err_estimate_scaled;
     }
 
-    double filter(double cerrPres, double cerrOld1, double cerrOld2, double rho1, double rho2)
+    long double filter(long double cerrPres, long double cerrOld1, long double cerrOld2, long double rho1, long double rho2)
     {
         /**
          * The General controller formula for Order-Dynamics pD <= 3 with Control error filtering.
          * Reference: Digital Filters in Adaptive Time-Stepping (Sorderlind, 2003)
          * https://dl.acm.org/doi/10.1145/641876.641877 -> page 22
          */
-        double result = std::pow(cerrPres, m_beta1) *
+        long double result = std::pow(cerrPres, m_beta1) *
                         std::pow(cerrOld1, m_beta2) *
                         std::pow(cerrOld2, m_beta3) *
                         std::pow(rho1, -m_alpha2) *
@@ -284,35 +284,35 @@ private:
         return result;
     }
 
-    void control_stepsize(double ratio)
+    void control_stepsize(long double ratio)
     {
         m_h *= ratio;
     }
 
-    std::array<double, DIMENSIONS> interpolate(double theta, double hPresent)
+    std::array<long double, DIMENSIONS> interpolate(long double theta, long double hPresent)
     {
 
-        const double C1 = 5.0 * (2558722523.0 - 31403016.0 * theta) / 11282082432.0;
-        const double C3 = 100.0 * (882725551.0 - 15701508.0 * theta) / 32700410799.0;
-        const double C4 = 25.0 * (443332067.0 - 31403016.0 * theta) / 1880347072.0;
-        const double C5 = 32805.0 * (23143187.0 - 3489224.0 * theta) / 199316789632.0;
-        const double C6 = 55.0 * (29972135.0 - 7076736.0 * theta) / 822651844.0;
-        const double C7 = 10.0 * (7414447.0 - 829305.0 * theta) / 29380423.0;
+        const long double C1 = 5.0 * (2558722523.0 - 31403016.0 * theta) / 11282082432.0;
+        const long double C3 = 100.0 * (882725551.0 - 15701508.0 * theta) / 32700410799.0;
+        const long double C4 = 25.0 * (443332067.0 - 31403016.0 * theta) / 1880347072.0;
+        const long double C5 = 32805.0 * (23143187.0 - 3489224.0 * theta) / 199316789632.0;
+        const long double C6 = 55.0 * (29972135.0 - 7076736.0 * theta) / 822651844.0;
+        const long double C7 = 10.0 * (7414447.0 - 829305.0 * theta) / 29380423.0;
 
-        double theta_sqr = std::pow(theta, 2.0);
-        double term1 = theta_sqr * (3.0 - 2.0 * theta);
-        double term2 = theta_sqr * std::pow(theta - 1.0, 2.0);
-        double term3 = theta * std::pow(theta - 1.0, 2.0);
-        double term4 = (theta - 1.0) * std::pow(theta, 2.0);
+        long double theta_sqr = std::pow(theta, 2.0);
+        long double term1 = theta_sqr * (3.0 - 2.0 * theta);
+        long double term2 = theta_sqr * std::pow(theta - 1.0, 2.0);
+        long double term3 = theta * std::pow(theta - 1.0, 2.0);
+        long double term4 = (theta - 1.0) * std::pow(theta, 2.0);
 
-        double b1Theta = term1 * Dopri54::b1 + term3 - term2 * C1;
-        double b3Theta = term1 * Dopri54::b3 + term2 * C3;
-        double b4Theta = term1 * Dopri54::b4 - term2 * C4;
-        double b5Theta = term1 * Dopri54::b5 + term2 * C5;
-        double b6Theta = term1 * Dopri54::b6 - term2 * C6;
-        double b7Theta = term4 + term2 * C7;
+        long double b1Theta = term1 * Dopri54::b1 + term3 - term2 * C1;
+        long double b3Theta = term1 * Dopri54::b3 + term2 * C3;
+        long double b4Theta = term1 * Dopri54::b4 - term2 * C4;
+        long double b5Theta = term1 * Dopri54::b5 + term2 * C5;
+        long double b6Theta = term1 * Dopri54::b6 - term2 * C6;
+        long double b7Theta = term4 + term2 * C7;
 
-        std::array<double, DIMENSIONS> solution{};
+        std::array<long double, DIMENSIONS> solution{};
         for (size_t i = 0; i < DIMENSIONS; i++)
         {
             /* code */
@@ -323,12 +323,12 @@ private:
     }
 
 public:
-    std::vector<std::array<double, DIMENSIONS>> m_yOut{}; // accumulate solution steps
-    std::vector<double> m_tOut{};                         // accumulate time steps
+    std::vector<std::array<long double, DIMENSIONS>> m_yOut{}; // accumulate solution steps
+    std::vector<long double> m_tOut{};                         // accumulate time steps
 
     // Solver(controllerType, f(t, y), y0, t0, tFinal, absTolerance=1E-6, relTolerance=1E-4, denseOut=false)
-    Solver(StepSizeController::Controllers controller, std::function<void(double, std::array<double, DIMENSIONS> &, std::array<double, DIMENSIONS> &)> fName,
-           std::array<double, DIMENSIONS> &y0, double t0, double tFinal, double absTol = 1e-6, double relTol = 1e-4, bool denseOut = false)
+    Solver(StepSizeController::Controllers controller, std::function<void(long double, std::array<long double, DIMENSIONS> &, std::array<long double, DIMENSIONS> &)> fName,
+           std::array<long double, DIMENSIONS> &y0, long double t0, long double tFinal, long double absTol = 1e-6, long double relTol = 1e-4, bool denseOut = false)
         : m_F{fName}, m_yn{y0}, m_t{t0}, m_tFinal{tFinal}, m_absTol{absTol}, m_relTol{relTol}, m_denseOut{denseOut}
     {
 
@@ -376,11 +376,11 @@ public:
         {
             m_h = std::min(m_h, m_tFinal - m_t);
 
-            double err_estimate_scaled = process();
+            long double err_estimate_scaled = process();
 
-            double cerr = 1.0 / err_estimate_scaled; // inverse of the error estimates scaled
+            long double cerr = 1.0 / err_estimate_scaled; // inverse of the error estimates scaled
 
-            double rho = filter(cerr, m_cerr1, m_cerr2, m_rh1, m_rh2);
+            long double rho = filter(cerr, m_cerr1, m_cerr2, m_rh1, m_rh2);
 
             // Save previous values for the next step.
             m_cerr2 = m_cerr1;
@@ -390,7 +390,7 @@ public:
             m_rh1 = rho;
 
             // Apply a limiter
-            double ratio = 1.0 + m_kappa * std::atan((rho - 1.0) / m_kappa);
+            long double ratio = 1.0 + m_kappa * std::atan((rho - 1.0) / m_kappa);
 
             if (ratio < m_acceptSF)
             { // Reject steps and recalculate with the new stepsize
@@ -408,8 +408,8 @@ public:
                      * Interpolate at open-interval theta ∈ (0, 1)
                      * un+1(t + theta*h) = yn + h * sum(bi(theta)*Ki), i = 1...s, theta ∈ (0, 1)
                      */
-                    double theta = 0.5;
-                    std::array<double, DIMENSIONS> extraSteps = interpolate(theta, m_h);
+                    long double theta = 0.5;
+                    std::array<long double, DIMENSIONS> extraSteps = interpolate(theta, m_h);
                     m_tOut.push_back(m_t + theta * m_h);
                     m_yOut.push_back(extraSteps);
                 }
@@ -438,7 +438,8 @@ public:
     {
         std::cout << std::endl;
 
-        std::cout << std::setprecision(15) << std::fixed;
+        constexpr auto max_precision{std::numeric_limits<long double>::digits10 + 1};
+        std::cout << std::setprecision(max_precision) << std::fixed;
 
         for (size_t i = 0; i < m_yOut.size(); i++)
         {
@@ -459,10 +460,10 @@ public:
 // y' = mu * (1 - x*x) * y - x
 
 // F(t, y)
-void F(double t, std::array<double, DIMENSIONS> &X, std::array<double, DIMENSIONS> &Ks)
+void F(long double t, std::array<long double, DIMENSIONS> &X, std::array<long double, DIMENSIONS> &Ks)
 {
-    double xDot = X[1];
-    double yDot = 0.75 * (1.0 - X[0]*X[0]) * X[1] - X[0];
+    long double xDot = X[1];
+    long double yDot = 0.75 * (1.0 - X[0]*X[0]) * X[1] - X[0];
     Ks[0] = xDot;
     Ks[1] = yDot;
 }
@@ -470,9 +471,9 @@ void F(double t, std::array<double, DIMENSIONS> &X, std::array<double, DIMENSION
 int main(void)
 {
 
-    std::array<double, DIMENSIONS> y0 = {2.0, 2.0};
-    double t0 = 0.0;
-    double tFinal = 10.0;
+    std::array<long double, DIMENSIONS> y0 = {2.0, 2.0};
+    long double t0 = 0.0;
+    long double tFinal = 10.0;
 
     StepSizeController::Controllers controller = StepSizeController::STANDARD; // Choose a controller
     Solver solver(controller, F, y0, t0, tFinal, 1e-8, 1e-8);
