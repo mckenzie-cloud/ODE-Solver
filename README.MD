@@ -1,4 +1,4 @@
-## ODE solver written in Rust and C++
+## ODE solver written in C++
 
 ## For more information
 **Here are all the references** <br>
