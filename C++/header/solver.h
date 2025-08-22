@@ -28,7 +28,7 @@ protected:
 private:
     const long double m_p = 4.0;         // the order corresponding to the RK method
     const long double m_k = m_p + 1.0;   // EPS => k = p + 1 and EPUS => k = p
-    const long double m_kappa = 1.5;     // kappa ∈ [0.7, 2] as suggested in the literature
+    const long double m_kappa = 1.0;     // kappa ∈ [0.7, 2] as suggested in the literature
     const long double m_acceptSF = 0.81; // accept safety factor
 
     std::vector<long double> m_truncationErrors, m_sci;
